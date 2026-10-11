@@ -30,7 +30,8 @@ antigravity-customizations/
 │   ├── karpathy-guidelines-nodejs-agent/ # Node.js agent constraints & practices
 │   ├── ponytail/                  # Minimalist/YAGNI code simplification skill
 │   ├── ponytail-review/           # Over-engineering code review skill
-│   └── review-common/             # Shared code review persona and rubrics
+│   ├── review-common/             # Shared code review persona and rubrics
+│   └── review-memory/             # Persistent Agentic Memory for code-review (branch-sensitive)
 ├── sync.ps1                       # Bi-directional sync script (Robocopy engine)
 ├── package.json                   # NPM lifecycle scripts for deployment and verification
 ├── README.md                      # Public overview documentation
