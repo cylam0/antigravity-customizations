@@ -1,0 +1,5 @@
+{
+  "name": "skills-manager",
+  "description": "Disable/enable skills to declutter the slash command menu, and view or edit SKILL.md files.",
+  "logo": "assets/logo.svg"
+}

@@ -1,0 +1,438 @@
+/*
+ * Theme-aware styles for Skills Manager.
+ * Strictly uses Antigravity host theme variables with standard fallbacks.
+ */
+
+:root {
+  --radius: 6px;
+  --gap: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: var(--background, #f8f9fa);
+  color: var(--foreground, #1f1f1f);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: 12px;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+/* Header ------------------------------------------------------------------ */
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-header h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-primary-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary-foreground, #ffffff);
+  background: var(--primary, #1a73e8);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.btn-primary-sm:hover {
+  opacity: 0.9;
+}
+
+.btn-icon {
+  background: transparent;
+  border: 1px solid var(--border, #dcdcdc);
+  border-radius: var(--radius);
+  color: var(--foreground, #1f1f1f);
+  padding: 3px 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-icon:hover {
+  background: var(--secondary, #eeeeee);
+}
+
+/* Filter Bar -------------------------------------------------------------- */
+
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+input[type="search"],
+input[type="text"],
+select,
+textarea {
+  width: 100%;
+  padding: 6px 10px;
+  font: inherit;
+  color: inherit;
+  background: var(--content, var(--background, #ffffff));
+  border: 1px solid var(--border, #d0d0d0);
+  border-radius: var(--radius);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--primary, #1a73e8);
+  outline-offset: 1px;
+}
+
+.scope-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tab-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--muted-foreground, #666666);
+  border: 1px solid var(--border, #dcdcdc);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  background: var(--secondary, #f0f0f0);
+}
+
+.tab-btn.active {
+  background: var(--primary, #1a73e8);
+  color: var(--primary-foreground, #ffffff);
+  border-color: var(--primary, #1a73e8);
+}
+
+/* Skill List & Cards ------------------------------------------------------ */
+
+.skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skill-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--card, #ffffff);
+  border: 1px solid var(--card-border, var(--border, #e0e0e0));
+  border-radius: var(--radius);
+  transition: opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.skill-card.disabled {
+  opacity: 0.65;
+  background: var(--sidebar-muted, var(--secondary, #f5f5f5));
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.skill-name-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--primary, #1a73e8);
+  cursor: pointer;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.skill-name-btn:hover {
+  text-decoration: underline;
+}
+
+.card-desc {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--muted-foreground, #666666);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.35;
+}
+
+.badge {
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badge-global {
+  background: color-mix(in srgb, var(--primary, #1a73e8) 15%, transparent);
+  color: var(--primary, #1a73e8);
+}
+
+.badge-workspace {
+  background: color-mix(in srgb, #1e8e3e 15%, transparent);
+  color: #1e8e3e;
+}
+
+.badge-builtin {
+  background: var(--secondary, #e8eaed);
+  color: var(--muted-foreground, #5f6368);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 24px 12px;
+  color: var(--muted-foreground, #888888);
+  font-style: italic;
+}
+
+/* Switch (Toggle) --------------------------------------------------------- */
+
+.card-toggle {
+  display: flex;
+  align-items: center;
+  padding-top: 2px;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--secondary, #ccc);
+  border: 1px solid var(--border, #aaa);
+  transition: 0.2s;
+  border-radius: 20px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: 0.2s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--primary, #1a73e8);
+  border-color: var(--primary, #1a73e8);
+}
+
+input:checked + .slider:before {
+  transform: translateX(14px);
+}
+
+/* Modal ------------------------------------------------------------------- */
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgb(0 0 0 / 45%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  z-index: 100;
+}
+
+.modal-card {
+  background: var(--card, #ffffff);
+  border: 1px solid var(--card-border, var(--border, #cccccc));
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 620px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.form-row {
+  display: flex;
+  gap: 8px;
+}
+
+.form-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.form-group label {
+  color: var(--muted-foreground, #666);
+  font-weight: 500;
+}
+
+.validation-banner {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.validation-banner.error {
+  background: color-mix(in srgb, #d93025 12%, transparent);
+  color: #d93025;
+}
+
+.validation-banner.ok {
+  background: color-mix(in srgb, #1e8e3e 12%, transparent);
+  color: #1e8e3e;
+}
+
+.editor-area textarea {
+  font-family: Consolas, "Cascadia Code", Monaco, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  resize: vertical;
+  min-height: 220px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+button {
+  padding: 6px 14px;
+  font: inherit;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--primary-foreground, #ffffff);
+  background: var(--primary, #1a73e8);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+button.secondary {
+  color: var(--foreground, #1f1f1f);
+  background: transparent;
+  border-color: var(--border, #d0d0d0);
+}
+
+button.secondary:hover {
+  background: var(--secondary, #f0f0f0);
+}
+
+/* Toast ------------------------------------------------------------------- */
+
+.toast {
+  position: fixed;
+  bottom: 14px;
+  left: 14px;
+  right: 14px;
+  margin: 0 auto;
+  max-width: 400px;
+  padding: 8px 12px;
+  background: var(--card, #ffffff);
+  border: 1px solid var(--card-border, var(--border, #e0e0e0));
+  border-radius: var(--radius);
+  color: var(--foreground, #1f1f1f);
+  font-size: 12px;
+  text-align: center;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
+  z-index: 200;
+}
+
+.toast.error {
+  border-color: #d93025;
+  color: #d93025;
+}
