@@ -18,10 +18,11 @@ param(
 $repo = $PSScriptRoot
 $cfgPlugins = "$env:USERPROFILE\.gemini\config\plugins"
 $cfgSkills  = "$env:USERPROFILE\.gemini\config\skills"
+$cfgAgents  = "$env:USERPROFILE\.gemini\config\agents"
 
 # Ensure target directories exist
-New-Item -ItemType Directory -Path "$repo\plugins", "$repo\skills" -Force | Out-Null
-New-Item -ItemType Directory -Path $cfgPlugins, $cfgSkills -Force | Out-Null
+New-Item -ItemType Directory -Path "$repo\plugins", "$repo\skills", "$repo\agents" -Force | Out-Null
+New-Item -ItemType Directory -Path $cfgPlugins, $cfgSkills, $cfgAgents -Force | Out-Null
 
 function Run-Robocopy {
     param($src, $dst, $excludeDirs = @())
@@ -39,12 +40,14 @@ function Run-Robocopy {
 
 if ($FromAntigravity) {
     Write-Host "Syncing from Antigravity -> Git Repo..." -ForegroundColor Cyan
-    Run-Robocopy "$cfgPlugins" "$repo\plugins" @("node_modules", ".data", "logs")
-    Run-Robocopy "$cfgSkills"  "$repo\skills"  @(".disabled")
+    Run-Robocopy "$cfgPlugins" "$repo\plugins" @("node_modules", ".data", "logs", ".git")
+    Run-Robocopy "$cfgSkills"  "$repo\skills"  @(".disabled", ".git")
+    Run-Robocopy "$cfgAgents"  "$repo\agents"  @(".disabled", ".git")
     Write-Host "Done! Your repository is updated. Ready for 'git add', 'git commit', and 'git push'." -ForegroundColor Green
 } else {
     Write-Host "Deploying from Git Repo -> Antigravity..." -ForegroundColor Cyan
-    Run-Robocopy "$repo\plugins" "$cfgPlugins" @("node_modules", ".data", "logs")
-    Run-Robocopy "$repo\skills"  "$cfgSkills"  @(".disabled")
-    Write-Host "Done! All plugins and skills are deployed to Antigravity." -ForegroundColor Green
+    Run-Robocopy "$repo\plugins" "$cfgPlugins" @("node_modules", ".data", "logs", ".git")
+    Run-Robocopy "$repo\skills"  "$cfgSkills"  @(".disabled", ".git")
+    Run-Robocopy "$repo\agents"  "$cfgAgents"  @(".disabled", ".git")
+    Write-Host "Done! All plugins, skills, and agents are deployed to Antigravity." -ForegroundColor Green
 }

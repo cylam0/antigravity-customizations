@@ -12,6 +12,11 @@ Customizations developed here are deployed to and synced with Antigravity's glob
 
 ```text
 antigravity-customizations/
+├── agents/                        # Custom subagents and orchestrators
+│   ├── code-reviewer/             # Multi-agent code review orchestrator
+│   ├── reviewer-logic/            # Reliability & boundary condition specialist
+│   ├── reviewer-security/         # Application security specialist
+│   └── reviewer-simplification/   # Minimalist/YAGNI code simplification specialist
 ├── plugins/                       # Antigravity plugins & UI extensions
 │   ├── skills-manager/            # Interactive Sidecar UI extension to manage skills
 │   │   ├── assets/                # Plugin icons and static graphics
@@ -21,6 +26,7 @@ antigravity-customizations/
 │   └── modern-web-guidance-plugin/# Web development guidance plugin
 ├── skills/                        # Standalone custom skills
 │   ├── codebase-guard/            # Issue library and tagging audit skill
+│   ├── code-review/               # Multi-agent review slash command (/code-review)
 │   ├── karpathy-guidelines-nodejs-agent/ # Node.js agent constraints & practices
 │   ├── ponytail/                  # Minimalist/YAGNI code simplification skill
 │   ├── ponytail-review/           # Over-engineering code review skill
@@ -39,11 +45,11 @@ All primary workflows are available via `npm` scripts:
 
 | Command | Script Target | Description |
 | :--- | :--- | :--- |
-| `npm run deploy` | `powershell ... sync.ps1` | Deploys all plugins and skills from this repository into `~/.gemini/config/`. |
+| `npm run deploy` | `powershell ... sync.ps1` | Deploys all plugins, skills, and agents from this repository into `~/.gemini/config/`. |
 | `npm run sync` | `npm run deploy` | Alias for `npm run deploy`. |
 | `npm run pull` | `powershell ... sync.ps1 -FromAntigravity` | Pulls live edits made inside Antigravity back into this repository. |
-| `npm test` | `node --check plugins/.../main.mjs` | Runs syntax checks across all sidecar backend scripts. |
-| `npm run check` | `npm test` | Alias for syntax validation. |
+| `npm test` | `node --check ... && node scripts/...` | Runs script syntax checks and frontmatter validation across skills & agents. |
+| `npm run check` | `npm test` | Alias for syntax and schema validation. |
 
 ---
 
@@ -98,6 +104,11 @@ git push
 - **Web UI Guidelines**:
   - Responsive, clean UI matching Antigravity's native dark/light theme tokens.
   - Pure vanilla JavaScript, CSS, and semantic HTML without complex bundle build steps unless necessary.
+
+### 3. Custom Agents (`agents/<agent-name>/agent.md`)
+- **Frontmatter**: Must include `name`, `description`, `kind: local`, and `model` (e.g. `gemini-3.1-pro` or `inherit`).
+- **Subagent vs Main**: Set `subagent: true` for specialist roles callable by orchestrators; set `mainAgent: true` for top-level entrypoints.
+- **Output Contracts**: Adversarial reviewers should output strict JSON array findings to facilitate automated aggregation and consensus voting.
 
 ---
 

@@ -6,6 +6,7 @@ A collection of custom UI extensions, plugins, and skills for Google Antigravity
 
 ```text
 antigravity-customizations/
+├── agents/                   # Custom subagents and orchestrators
 ├── plugins/                  # UI extension plugins (e.g. skills-manager)
 │   └── skills-manager/
 ├── skills/                   # Standalone skills
@@ -18,9 +19,9 @@ antigravity-customizations/
 
 | Command | Action |
 | :--- | :--- |
-| `npm run deploy` (or `npm run sync`) | Deploys all plugins and skills from this repo into Antigravity. |
+| `npm run deploy` (or `npm run sync`) | Deploys all plugins, skills, and agents from this repo into Antigravity. |
 | `npm run pull` | Pulls edits/creations from Antigravity back into this repo. |
-| `npm test` (or `npm run check`) | Runs syntax checks across all sidecar backend scripts. |
+| `npm test` (or `npm run check`) | Runs script checks and frontmatter validation across skills & agents. |
 
 ## Workflow
 
