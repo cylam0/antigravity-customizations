@@ -95,3 +95,30 @@ test('conventions: addConvention and file extension filtering', async () => {
   const qUnrelated = await queryMemory({ repoPath: mockRepo, files: ['styles/main.css'] });
   assert.equal(qUnrelated.activeConventions.some(c => c.rule.includes('node:fs/promises')), false);
 });
+
+test('saveSession: resilient against string or non-array findings', async () => {
+  const mockRepo = 'C:/mock/repo-alpha';
+  const resStr = await saveSession(JSON.stringify([{ id: 'REV-99', file: 'a.js' }]), mockRepo, 'main');
+  assert.equal(resStr.length, 1);
+  assert.equal(resStr[0].id, 'REV-99');
+
+  const resInvalid = await saveSession(null, mockRepo, 'main');
+  assert.equal(Array.isArray(resInvalid), true);
+  assert.equal(resInvalid.length, 0);
+});
+
+test('CLI: query command terminates immediately in non-TTY environment', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const scriptPath = fileURLToPath(new URL('./memory-store.mjs', import.meta.url));
+
+  const output = execFileSync(
+    process.execPath,
+    [scriptPath, 'query', '--repo', process.cwd(), '--branch', 'test-branch', '--files', 'test.js'],
+    { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] }
+  );
+
+  const parsed = JSON.parse(output);
+  assert.equal(parsed.branch, 'test-branch');
+  assert.ok(Array.isArray(parsed.dismissed));
+});

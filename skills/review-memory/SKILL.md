@@ -28,7 +28,7 @@ Determine which mode to execute based on the user's prompt or slash command.
    ```bash
    node skills/review-memory/scripts/memory-store.mjs record-decision --id REV-X --status dismissed --rationale "Your reason here"
    ```
-   *(For multiline or complex rationales, pipe via stdin or pass `--payload-json`).*
+   *(For multiline or complex rationales, pass `--payload-file <path>`, `--payload-json`, or pipe via stdin with `--stdin`).*
 4. Confirm to user:
    > ✅ Recorded dismissal for **[REV-X]** on branch `[branch-name]`: *"<rationale>"*. Future code reviews on this branch will skip this issue.
 
@@ -83,7 +83,9 @@ Determine which mode to execute based on the user's prompt or slash command.
    - `dismissedSignatures`: Filter against findings in Two-Tier Consensus. Suppress matches from active blockers/warnings and add them to a collapsed `<details>` skipped audit trail.
 4. After review finishes, save the review findings snapshot:
    ```bash
-   node skills/review-memory/scripts/memory-store.mjs save-session
+   node skills/review-memory/scripts/memory-store.mjs save-session --repo <repoRoot> --branch <branch> --findings '<json>'
+   # or write findings to a temp json file and pass:
+   # node skills/review-memory/scripts/memory-store.mjs save-session --repo <repoRoot> --branch <branch> --findings-file <path>
    ```
 
 ---

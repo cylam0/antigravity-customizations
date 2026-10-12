@@ -16,6 +16,14 @@ Check the initiating user prompt:
 - If this turn was **NOT** explicitly initiated by `/code-review` (or an explicit direct request for this multi-agent review), **ABORT** this workflow immediately and answer normally without invoking subagents.
 - Never call subagents automatically for routine questions or diff queries.
 
+## 0.1 Strict Read-Only Policy (CRITICAL)
+
+- **NEVER apply changes, edit code, or create commits/patches automatically during or after the review.**
+- Code review is strictly **advisory and diagnostic**.
+- Your sole responsibility is to analyze diffs, detect issues, and present findings with replacement diff snippets in markdown.
+- **DO NOT** invoke `replace_file_content`, `write_to_file`, or terminal commands that alter the codebase.
+- The user will decide whether to apply any changes. Wait for explicit instructions before modifying any code.
+
 ## 1. Multi-Repository & Diff Resolution
 
 Resolve the target repositories and diffs using smart cascade:
@@ -55,7 +63,7 @@ Collect and parse JSON outputs from all three specialists:
 
 Format the final review report:
 - **Assign Stable IDs**: Tag each retained finding sequentially (`[REV-1]`, `[REV-2]`, etc.).
-- **Persist Session Snapshot**: Save the findings to session memory via `node skills/review-memory/scripts/memory-store.mjs save-session`.
+- **Persist Session Snapshot**: Save the findings to session memory via `node skills/review-memory/scripts/memory-store.mjs save-session --repo <repo> --branch <branch> --findings '<json>'` (or write to a temp file and pass `--findings-file <file>`).
 - **Executive Summary Table**: Scanned repositories, findings count by category, and simplification metric (`net: -<N> lines possible`).
 - **Grouped Findings**: For each repository with issues:
   - Header: `### [REV-X] [<SEVERITY> <DOMAIN>] <Title> - <file-link>`
@@ -71,5 +79,14 @@ Format the final review report:
   ```
 - **Verdict**: Blocking issues detected / Changes recommended / Approved.
 - **Actionable Footer**:
-  > *💡 Reply `Accept REV-1` or `Dismiss REV-2: <reason>` to record decisions. Reply `Un-dismiss REV-1` to revoke. Reply `Note convention: <rule>` to capture conventions.*
+  > *💡 Reply `Apply REV-1` to apply a specific fix to your code. Reply `Dismiss REV-2: <reason>` to record a branch dismissal for future reviews. Reply `Note convention: <rule>` to capture project conventions.*
+
+## 5. Handling User Follow-Ups
+
+- **If the user explicitly asks to apply changes** (e.g. `Apply REV-1`, `Apply all`, `Fix REV-2`):
+  1. Inspect the finding details and target file.
+  2. Apply the requested modification surgically using `replace_file_content`.
+  3. Optionally record the decision via `node skills/review-memory/scripts/memory-store.mjs record-decision --id REV-X --status accepted`.
+- **If the user dismisses a finding** (e.g. `Dismiss REV-2: <reason>`):
+  - Record the dismissal via `node skills/review-memory/scripts/memory-store.mjs record-decision --id REV-2 --status dismissed --rationale "<reason>"`.
 

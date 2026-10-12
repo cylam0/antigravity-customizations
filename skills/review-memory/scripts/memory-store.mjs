@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const BASE_DIR = path.join(os.homedir(), '.gemini', 'memory', 'code-review');
 const SESSION_FILE = path.join(BASE_DIR, 'recent_session.json');
@@ -22,9 +23,9 @@ export function resolveRepoSlug(repoRoot, remoteUrl = '') {
 
 export function resolveGitBranch(repoPath) {
   try {
-    const branch = execFileSync('git', ['-C', repoPath, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+    const branch = execFileSync('git', ['-C', repoPath, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }).trim();
     if (branch && branch !== 'HEAD') return branch;
-    const commit = execFileSync('git', ['-C', repoPath, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+    const commit = execFileSync('git', ['-C', repoPath, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }).trim();
     return `detached_${commit || 'unknown'}`;
   } catch {
     return 'default';
@@ -33,7 +34,7 @@ export function resolveGitBranch(repoPath) {
 
 export function resolveGitRemote(repoPath) {
   try {
-    return execFileSync('git', ['-C', repoPath, 'remote', 'get-url', 'origin'], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+    return execFileSync('git', ['-C', repoPath, 'remote', 'get-url', 'origin'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }).trim();
   } catch {
     return '';
   }
@@ -41,7 +42,7 @@ export function resolveGitRemote(repoPath) {
 
 export function resolveGitCommit(repoPath) {
   try {
-    return execFileSync('git', ['-C', repoPath, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+    return execFileSync('git', ['-C', repoPath, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }).trim();
   } catch {
     return '';
   }
@@ -97,13 +98,20 @@ function getRepoPaths(repoRoot, remoteUrl = '') {
 // --- Core API Operations ---
 
 export async function saveSession(findings, repoPath, branch, remoteUrl = '') {
+  let list = findings;
+  if (typeof list === 'string') {
+    try { list = JSON.parse(list); } catch { list = []; }
+  }
+  if (!Array.isArray(list)) {
+    list = [];
+  }
   const repoRoot = path.resolve(repoPath || process.cwd());
   const activeBranch = branch || resolveGitBranch(repoRoot);
   const activeRemote = remoteUrl || resolveGitRemote(repoRoot);
   const headCommit = resolveGitCommit(repoRoot);
   const { slug } = getRepoPaths(repoRoot, activeRemote);
 
-  const indexedFindings = findings.map((f, i) => {
+  const indexedFindings = list.map((f, i) => {
     const id = f.id || `REV-${i + 1}`;
     const signature = f.signature || computeAnchorSignature(f.file, f.type || f.domain, f.fix || f.snippet || '', f.title || f.message || '');
     return {
@@ -286,29 +294,69 @@ async function readPayload() {
   const args = process.argv.slice(3);
   let payload = {};
 
-  // Check stdin
-  if (!process.stdin.isTTY) {
+  // Check CLI arguments first
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--payload-json' && args[i + 1]) {
+      try { Object.assign(payload, JSON.parse(args[++i])); } catch {}
+    } else if (arg === '--payload-file' && args[i + 1]) {
+      try {
+        const content = await fs.readFile(args[++i], 'utf8');
+        Object.assign(payload, JSON.parse(content));
+      } catch {}
+    } else if (arg === '--findings-file' && args[i + 1]) {
+      try {
+        const content = await fs.readFile(args[++i], 'utf8');
+        payload.findings = JSON.parse(content);
+      } catch {}
+    } else if (arg === '--findings' && args[i + 1]) {
+      try {
+        payload.findings = JSON.parse(args[++i]);
+      } catch {
+        payload.findings = args[i];
+      }
+    } else if (arg.startsWith('--') && arg.includes('=')) {
+      const eqIdx = arg.indexOf('=');
+      const key = arg.slice(2, eqIdx);
+      const val = arg.slice(eqIdx + 1);
+      payload[key] = val;
+    } else if (arg.startsWith('--') && args[i + 1] && !args[i + 1].startsWith('--')) {
+      const key = arg.slice(2);
+      payload[key] = args[++i];
+    } else if (arg === '-' || arg === '--stdin') {
+      payload.stdin = true;
+    } else if (arg.startsWith('--')) {
+      payload[arg.slice(2)] = true;
+    }
+  }
+
+  // Only read stdin if explicitly requested via --stdin or -
+  if (payload.stdin) {
     try {
       const chunks = [];
       for await (const chunk of process.stdin) chunks.push(chunk);
       const raw = Buffer.concat(chunks).toString('utf8').trim();
-      if (raw) payload = JSON.parse(raw);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            payload.findings = parsed;
+          } else if (typeof parsed === 'object' && parsed !== null) {
+            Object.assign(payload, parsed);
+          }
+        } catch {
+          if (!payload.rationale) payload.rationale = raw;
+        }
+      }
     } catch {
       // ignore empty stdin
     }
   }
 
-  // Check CLI arguments
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === '--payload-json' && args[i + 1]) {
-      try { Object.assign(payload, JSON.parse(args[++i])); } catch {}
-    } else if (arg.startsWith('--') && args[i + 1] && !args[i + 1].startsWith('--')) {
-      const key = arg.slice(2);
-      payload[key] = args[++i];
-    } else if (arg.startsWith('--')) {
-      payload[arg.slice(2)] = true;
-    }
+  if (typeof payload.findings === 'string') {
+    try {
+      payload.findings = JSON.parse(payload.findings);
+    } catch {}
   }
 
   return payload;
@@ -367,6 +415,12 @@ Commands:
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, '$1'))) {
-  main();
+if (process.argv[1]) {
+  const scriptPath = fileURLToPath(import.meta.url);
+  const isDirectRun = process.platform === 'win32'
+    ? path.resolve(process.argv[1]).toLowerCase() === path.resolve(scriptPath).toLowerCase()
+    : path.resolve(process.argv[1]) === path.resolve(scriptPath);
+  if (isDirectRun) {
+    main();
+  }
 }
