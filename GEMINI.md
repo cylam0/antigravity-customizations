@@ -27,6 +27,7 @@ antigravity-customizations/
 ├── skills/                        # Standalone custom skills
 │   ├── codebase-guard/            # Issue library and tagging audit skill
 │   ├── code-review/               # Multi-agent review slash command (/code-review)
+│   ├── git-commit-push/           # Safe commit & push with branch confirmation & leak guard
 │   ├── karpathy-guidelines-nodejs-agent/ # Node.js agent constraints & practices
 │   ├── ponytail/                  # Minimalist/YAGNI code simplification skill
 │   ├── ponytail-review/           # Over-engineering code review skill
@@ -118,3 +119,11 @@ git push
 1. **Verify Before Deploying**: Always run `npm test` (or `node --check`) before executing `npm run deploy` to avoid breaking Antigravity's runtime sidecars.
 2. **Preserve User Edits**: Before overwriting any files when running syncs, confirm whether any uncommitted local work exists using `git status`.
 3. **Cross-Platform Compatibility**: Always ensure scripts and path logic work correctly on Windows (`PowerShell`, backslashes, drive roots) as well as POSIX systems.
+4. **Pre-Modification & Commit Branch Confirmation Guard (MANDATORY)**:
+   - Before modifying, editing, creating, deleting, or **staging/committing** files in a git repository:
+     - **Git Repo Check**: Verify directory is a git repository (`git rev-parse --is-inside-work-tree`). Skip if not a git repository.
+     - **Inspect Branch**: Query `git rev-parse --abbrev-ref HEAD` to check the current branch.
+     - **Protected Branch Guard**: Alert if on `main`, `master`, `production`, `release/*`, or a detached HEAD.
+     - **Confirm Once per Conversation**: If this repository and branch have not yet been explicitly confirmed in the conversation, **HALT** before modifying or committing files. List the repository, the active branch, and the target files, and ask the user to confirm once.
+     - **Wrong Branch Handling**: If the user indicates it is the wrong branch, offer to create a new feature branch (`git checkout -b <branch>`) or switch to an existing branch.
+     - **Session Continuity**: Once confirmed for that repository and branch in the conversation, proceed with edits and commits without repeatedly prompting for every file.
