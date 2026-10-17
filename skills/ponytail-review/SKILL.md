@@ -1,17 +1,22 @@
 ---
 name: ponytail-review
-description: >
-  Code review focused exclusively on over-engineering. Finds what to delete:
-  reinvented standard library, unneeded dependencies, speculative abstractions,
-  dead flexibility. One line per finding: location, what to cut, what replaces
-  it. Use when the user says "review for over-engineering", "what can we
-  delete", "is this over-engineered", "simplify review", or invokes
-  /ponytail-review. Complements correctness-focused review, this one only
-  hunts complexity.
+description: >-
+  CRITICAL: ONLY activate this skill when the user explicitly triggers the `/ponytail-review` slash command.
+  DO NOT auto-trigger or invoke this skill for general code reviews, diff checks, or informal complexity questions.
+  When invoked via `/ponytail-review`, reviews diffs exclusively for over-engineering, dead flexibility, and code to delete.
 ---
+
+# Ponytail Review
 
 Review diffs for unnecessary complexity. One line per finding: location, what
 to cut, what replaces it. The diff's best outcome is getting shorter.
+
+## 0. Invocation Guard
+
+Check the initiating user prompt:
+- If this turn was **NOT** explicitly initiated by `/ponytail-review`, **ABORT** this workflow immediately and proceed with standard review or discussion without applying ponytail-review constraints.
+- Do **NOT** auto-trigger for informal requests like "what can we delete", "is this over-engineered", or general diff checks unless `/ponytail-review` is explicitly typed.
+- Single-turn scope only: applies strictly to the turn where `/ponytail-review` is explicitly invoked.
 
 ## Format
 
@@ -53,5 +58,4 @@ Scope: over-engineering and complexity only. Correctness bugs, security holes,
 and performance are explicitly out of scope. Route them to a normal review
 pass, not this one. A single smoke test or `assert`-based
 self-check is the ponytail minimum, not bloat, never flag it for deletion.
-Does not apply the fixes, only lists them.
-"stop ponytail-review" or "normal mode": revert to verbose review style.
+Does not apply the fixes, only lists them. Applies strictly to the turn explicitly invoked via `/ponytail-review`.

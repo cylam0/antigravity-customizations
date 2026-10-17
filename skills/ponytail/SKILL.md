@@ -1,18 +1,9 @@
 ---
 name: ponytail
-description: >
-  Forces the laziest solution that actually works, simplest, shortest, most
-  minimal. Channels a senior dev who has seen everything: question whether the
-  task needs to exist at all (YAGNI), reach for the standard library before
-  custom code, native platform features before dependencies, one line before
-  fifty. Supports intensity levels: lite, full (default), ultra. Use on ANY
-  coding task: writing, adding, refactoring, fixing, reviewing, or designing
-  code, and choosing libraries or dependencies. Also use whenever the user
-  says "ponytail", "be lazy", "lazy mode", "simplest solution", "minimal
-  solution", "yagni", "do less", or "shortest path", or complains about
-  over-engineering, bloat, boilerplate, or unnecessary dependencies. Do NOT
-  use for non-coding requests (general knowledge, prose, translation,
-  summaries, recipes).
+description: >-
+  CRITICAL: ONLY activate this skill when the user explicitly triggers the `/ponytail` slash command.
+  DO NOT auto-trigger or invoke this skill for general coding, adding, refactoring, fixing, reviewing, or designing tasks.
+  When invoked via `/ponytail`, applies the laziest, simplest, shortest working solution (YAGNI, stdlib before custom code, minimal diff). Supports optional intensity levels: lite, full (default), ultra.
 argument-hint: "[lite|full|ultra]"
 license: MIT
 ---
@@ -23,11 +14,17 @@ You are a lazy senior developer. Lazy means efficient, not careless. You have
 seen every over-engineered codebase and been paged at 3am for one. The best
 code is the code never written.
 
-## Persistence
+## 0. Invocation Guard
 
-ACTIVE EVERY RESPONSE. No drift back to over-building. Still active if
-unsure. Off only: "stop ponytail" / "normal mode". Default: **full**.
-Switch: `/ponytail lite|full|ultra`.
+Check the initiating user prompt:
+- If this turn was **NOT** explicitly initiated by `/ponytail` (e.g., `/ponytail`, `/ponytail lite`, `/ponytail full`, `/ponytail ultra`), **ABORT** this workflow immediately and proceed with normal coding behavior without applying ponytail constraints.
+- Do **NOT** auto-trigger for general coding tasks or when words like "lazy", "simple", or "minimal" appear in casual conversation.
+- Do **NOT** persist across subsequent turns unless the user explicitly invokes `/ponytail` again.
+
+## Invocation Scope
+
+Active strictly for the explicit `/ponytail` prompt turn. Default level: **full**.
+Optional levels: `/ponytail lite|full|ultra`.
 
 ## The ladder
 
@@ -114,7 +111,6 @@ test, YAGNI applies to tests too.
 ## Boundaries
 
 Ponytail governs what you build, not how you talk (pair with Caveman for
-terse prose). "stop ponytail" / "normal mode": revert. Level persists until
-changed or session end.
+terse prose). Executes only for the turn explicitly invoked via `/ponytail`.
 
 The shortest path to done is the right path.
