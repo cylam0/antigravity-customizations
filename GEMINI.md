@@ -18,6 +18,12 @@ antigravity-customizations/
 │   ├── reviewer-security/         # Application security specialist
 │   └── reviewer-simplification/   # Minimalist/YAGNI code simplification specialist
 ├── plugins/                       # Antigravity plugins & UI extensions
+│   ├── repo-manager/              # Multi-repo auxiliary panel to select active repositories
+│   │   ├── sidecars/panel/        # Sidecar web UI (HTML, CSS, JS) and backend (main.mjs)
+│   │   ├── scripts/               # Hook scripts (inject-active-repos.mjs)
+│   │   ├── rules/                 # Operational scoping rules (AGENTS.md)
+│   │   ├── hooks.json             # PreInvocation & SessionStart hook definitions
+│   │   └── plugin.json            # Plugin manifest definition
 │   ├── skills-manager/            # Interactive Sidecar UI extension to manage skills
 │   │   ├── assets/                # Plugin icons and static graphics
 │   │   ├── sidecars/panel/        # Sidecar web UI (HTML, CSS, JS) and backend (main.mjs)

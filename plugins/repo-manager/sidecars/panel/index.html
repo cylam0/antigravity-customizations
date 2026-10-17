@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Repo Manager</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="panel-header">
+      <div class="header-left">
+        <h1 class="panel-title">Repo Manager</h1>
+        <span id="selection-badge" class="badge badge-info">0 selected</span>
+      </div>
+      <div class="header-right">
+        <span id="refresh-status" class="refresh-indicator" title="Auto-refresh active">
+          <span class="pulse-dot"></span> Live
+        </span>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Filter repositories or branches..." autocomplete="off" />
+      </div>
+      <div class="actions-row">
+        <button id="btn-select-all" class="btn btn-secondary btn-sm" type="button">Select All</button>
+        <button id="btn-clear-all" class="btn btn-secondary btn-sm" type="button">Clear All</button>
+        <button id="btn-modified-only" class="btn btn-secondary btn-sm" type="button">Modified Only</button>
+      </div>
+    </div>
+
+    <main class="content">
+      <div id="repo-list" class="repo-list"></div>
+      <div id="empty-state" class="empty-state" hidden>
+        <div class="empty-icon">📂</div>
+        <p class="empty-text">No Git repositories discovered in this workspace.</p>
+      </div>
+    </main>
+
+    <div id="toast" class="toast" hidden></div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

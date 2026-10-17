@@ -1,0 +1,4 @@
+{
+  "name": "repo-manager",
+  "description": "Auxiliary panel to view and select active Git repositories for conversations in multi-repo workspaces."
+}

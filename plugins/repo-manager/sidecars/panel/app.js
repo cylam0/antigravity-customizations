@@ -1,0 +1,215 @@
+const sidecar = window.sidecar;
+const $ = (id) => document.getElementById(id);
+
+let allRepos = [];
+let workspaceUris = [];
+let conversationId = null;
+let searchQuery = '';
+let filterModifiedOnly = false;
+let autoRefreshTimer = null;
+let isSaving = false;
+
+// ---------------------------------------------------------------------------
+// Helpers & API
+// ---------------------------------------------------------------------------
+
+async function api(path, { method = 'GET', body } = {}) {
+  const options = { method };
+  if (body !== undefined) {
+    options.body = JSON.stringify(body);
+  }
+  const res = await (sidecar ? sidecar.fetch(path, options) : fetch(path, options));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || `${res.status} ${res.statusText}`);
+  }
+  return data;
+}
+
+let toastTimer;
+function toast(message) {
+  const el = $('toast');
+  el.textContent = message;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2000);
+}
+
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ---------------------------------------------------------------------------
+// Core Data & Rendering
+// ---------------------------------------------------------------------------
+
+async function loadRepos(showSpinner = true) {
+  if (isSaving) return; // don't clobber in-flight save
+  try {
+    if (sidecar && typeof sidecar.getWorkspaceUris === 'function') {
+      workspaceUris = await sidecar.getWorkspaceUris().catch(() => []);
+    }
+    if (sidecar && typeof sidecar.getConversationId === 'function') {
+      conversationId = await sidecar.getConversationId().catch(() => null);
+    }
+
+    const params = new URLSearchParams();
+    if (workspaceUris.length) params.set('workspaceUris', workspaceUris.join(','));
+    if (conversationId) params.set('conversationId', conversationId);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await api(`/api/repos${query}`);
+
+    allRepos = res.repos || [];
+    renderList();
+  } catch (err) {
+    if (showSpinner) {
+      toast(`Failed to load repos: ${err.message}`);
+    }
+  }
+}
+
+async function saveSelection() {
+  isSaving = true;
+  try {
+    const selectedPaths = allRepos.filter(r => r.selected).map(r => r.path);
+    await api('/api/repos/select', {
+      method: 'POST',
+      body: {
+        workspaceUris,
+        conversationId,
+        selectedPaths,
+      },
+    });
+    toast(`Active repositories updated (${selectedPaths.length} selected)`);
+  } catch (err) {
+    toast(`Failed to save: ${err.message}`);
+  } finally {
+    isSaving = false;
+  }
+}
+
+function renderList() {
+  const container = $('repo-list');
+  const empty = $('empty-state');
+  const badge = $('selection-badge');
+
+  const selectedCount = allRepos.filter(r => r.selected).length;
+  badge.textContent = `${selectedCount} of ${allRepos.length} selected`;
+
+  const q = searchQuery.toLowerCase().trim();
+  const filtered = allRepos.filter(r => {
+    if (filterModifiedOnly && r.isClean) return false;
+    if (q) {
+      const matchName = r.name.toLowerCase().includes(q);
+      const matchPath = (r.relativePath || '').toLowerCase().includes(q);
+      const matchBranch = (r.branch || '').toLowerCase().includes(q);
+      return matchName || matchPath || matchBranch;
+    }
+    return true;
+  });
+
+  if (allRepos.length === 0) {
+    container.innerHTML = '';
+    empty.hidden = false;
+    return;
+  }
+
+  empty.hidden = true;
+  container.innerHTML = filtered.map(r => {
+    const isProtected = r.isProtected;
+    const branchBadgeClass = isProtected ? 'branch-badge protected' : 'branch-badge';
+    const statusPillClass = r.isClean ? 'status-pill clean' : 'status-pill dirty';
+    const statusText = r.isClean ? 'Clean' : `+${r.dirtyCount} modified`;
+
+    return `
+      <div class="repo-card ${r.selected ? 'selected' : ''}" data-path="${escapeHtml(r.path)}">
+        <div class="repo-checkbox-wrap">
+          <input type="checkbox" class="repo-checkbox" ${r.selected ? 'checked' : ''} data-path="${escapeHtml(r.path)}" />
+        </div>
+        <div class="repo-info">
+          <div class="repo-title-row">
+            <span class="repo-name" title="${escapeHtml(r.path)}">${escapeHtml(r.name)}</span>
+            <span class="${branchBadgeClass}">${escapeHtml(r.branch)}${isProtected ? ' (protected)' : ''}</span>
+          </div>
+          <div class="repo-path">${escapeHtml(r.relativePath)}</div>
+          <div class="repo-meta-row">
+            <span class="${statusPillClass}">${statusText}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Attach event handlers
+  container.querySelectorAll('.repo-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      if (e.target.classList.contains('repo-checkbox')) return;
+      const chk = card.querySelector('.repo-checkbox');
+      chk.checked = !chk.checked;
+      toggleRepo(chk.dataset.path, chk.checked);
+    });
+  });
+
+  container.querySelectorAll('.repo-checkbox').forEach(chk => {
+    chk.addEventListener('change', (e) => {
+      toggleRepo(e.target.dataset.path, e.target.checked);
+    });
+  });
+}
+
+function toggleRepo(path, selected) {
+  const repo = allRepos.find(r => r.path === path);
+  if (repo) {
+    repo.selected = selected;
+    renderList();
+    saveSelection();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Event Listeners
+// ---------------------------------------------------------------------------
+
+function setupEvents() {
+  $('search-input').addEventListener('input', (e) => {
+    searchQuery = e.target.value;
+    renderList();
+  });
+
+  $('btn-select-all').addEventListener('click', () => {
+    allRepos.forEach(r => { r.selected = true; });
+    renderList();
+    saveSelection();
+  });
+
+  $('btn-clear-all').addEventListener('click', () => {
+    allRepos.forEach(r => { r.selected = false; });
+    renderList();
+    saveSelection();
+  });
+
+  $('btn-modified-only').addEventListener('click', () => {
+    filterModifiedOnly = !filterModifiedOnly;
+    $('btn-modified-only').classList.toggle('btn-primary', filterModifiedOnly);
+    renderList();
+  });
+
+  // Auto-refresh when window regains focus
+  window.addEventListener('focus', () => {
+    loadRepos(false);
+  });
+
+  // Auto-refresh every 5 seconds
+  autoRefreshTimer = setInterval(() => {
+    loadRepos(false);
+  }, 5000);
+}
+
+// Initialize
+setupEvents();
+loadRepos();

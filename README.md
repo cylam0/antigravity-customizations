@@ -7,8 +7,9 @@ A collection of custom UI extensions, plugins, and skills for Google Antigravity
 ```text
 antigravity-customizations/
 ├── agents/                   # Custom subagents and orchestrators
-├── plugins/                  # UI extension plugins (e.g. skills-manager)
-│   └── skills-manager/
+├── plugins/                  # UI extension plugins (e.g. skills-manager, repo-manager)
+│   ├── repo-manager/         # Multi-repo auxiliary panel to select active repositories
+│   └── skills-manager/       # Skills toggle & editor sidecar
 ├── skills/                   # Standalone skills
 ├── sync.ps1                  # Two-way sync script with Antigravity
 ├── package.json              # NPM scripts for deployment and verification

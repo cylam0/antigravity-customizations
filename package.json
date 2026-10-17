@@ -8,7 +8,7 @@
     "deploy": "powershell -ExecutionPolicy Bypass -File ./sync.ps1",
     "pull": "powershell -ExecutionPolicy Bypass -File ./sync.ps1 -FromAntigravity",
     "sync": "npm run deploy",
-    "check": "node --check plugins/skills-manager/sidecars/panel/main.mjs && node --check skills/review-memory/scripts/memory-store.mjs && node scripts/validate-customizations.mjs",
+    "check": "node --check plugins/skills-manager/sidecars/panel/main.mjs && node --check plugins/repo-manager/sidecars/panel/main.mjs && node --check plugins/repo-manager/scripts/inject-active-repos.mjs && node --check skills/review-memory/scripts/memory-store.mjs && node scripts/validate-customizations.mjs",
     "test": "npm run check && node --test skills/review-memory/scripts/memory-store.test.mjs"
   },
   "keywords": [
