@@ -29,8 +29,6 @@ function parseWorkspaceRoots(workspaceUris) {
       if (!trimmed) return null;
       if (trimmed.startsWith('file://')) {
         trimmed = fileURLToPath(trimmed);
-      } else {
-        trimmed = decodeURIComponent(trimmed);
       }
       return resolve(normalize(trimmed));
     } catch {
@@ -56,22 +54,9 @@ function discoverFallbackRoots() {
     for (const file of files) {
       try {
         const content = JSON.parse(readFileSync(file.path, 'utf8'));
-        const resources = content?.projectResources?.resources || [];
-        for (const res of resources) {
-          const folderUri = res?.gitFolder?.folderUri;
-          if (folderUri) {
-            try {
-              const fsPath = folderUri.startsWith('file://') ? fileURLToPath(folderUri) : folderUri;
-              const canonical = resolve(normalize(fsPath));
-              if (existsSync(canonical) && !roots.includes(canonical)) {
-                roots.push(canonical);
-              }
-            } catch {
-              // ignore
-            }
-          }
-        }
-        if (roots.length > 0) break; // Use most recent project
+        const uris = (content?.projectResources?.resources || []).map(r => r?.gitFolder?.folderUri).filter(Boolean);
+        const resolved = parseWorkspaceRoots(uris).filter(existsSync);
+        if (resolved.length > 0) return [...new Set(resolved)];
       } catch {
         // ignore
       }
@@ -253,6 +238,9 @@ app.api('/api/repos', (data) => {
 app.api('/api/repos/select', (data) => {
   try {
     const wsRoots = parseWorkspaceRoots(data?.workspaceUris);
+    if (wsRoots.length === 0) {
+      return jsonResponse({ success: false, reason: 'No explicit workspace provided' }, 200);
+    }
     const conversationId = data?.conversationId ? String(data.conversationId) : null;
     const selectedPaths = Array.isArray(data?.selectedPaths) ? data.selectedPaths.map(p => resolve(normalize(p))) : [];
 

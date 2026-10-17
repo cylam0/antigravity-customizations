@@ -54,12 +54,16 @@ async function loadRepos(showSpinner = true) {
     const sidecar = getSidecar();
     if (sidecar && typeof sidecar.getWorkspaceUris === 'function') {
       const uris = await sidecar.getWorkspaceUris().catch(() => []);
-      if (uris && uris.length > 0) {
+      if (uris) {
         workspaceUris = uris;
       }
     }
-    if (sidecar && sidecar.conversationId) {
-      conversationId = sidecar.conversationId;
+    if (sidecar) {
+      if (typeof sidecar.getConversationId === 'function') {
+        conversationId = await sidecar.getConversationId().catch(() => null) || sidecar.conversationId || null;
+      } else {
+        conversationId = sidecar.conversationId || null;
+      }
     }
 
     const params = new URLSearchParams();
@@ -79,6 +83,7 @@ async function loadRepos(showSpinner = true) {
 }
 
 async function saveSelection() {
+  if (!conversationId) return;
   isSaving = true;
   try {
     const selectedPaths = allRepos.filter(r => r.selected).map(r => r.path);
@@ -101,10 +106,38 @@ async function saveSelection() {
 function renderList() {
   const container = $('repo-list');
   const empty = $('empty-state');
+  const noWsState = $('no-workspace-state');
   const badge = $('selection-badge');
+  const btnSelectAll = $('btn-select-all');
+  const btnClearAll = $('btn-clear-all');
 
+  // Check if workspace is open
+  if (workspaceUris.length === 0) {
+    container.innerHTML = '';
+    empty.hidden = true;
+    if (noWsState) noWsState.hidden = false;
+    badge.textContent = 'No workspace open';
+    badge.className = 'badge';
+    if (btnSelectAll) btnSelectAll.disabled = true;
+    if (btnClearAll) btnClearAll.disabled = true;
+    return;
+  }
+  if (noWsState) noWsState.hidden = true;
+
+  const isInteractive = Boolean(conversationId);
   const selectedCount = allRepos.filter(r => r.selected).length;
-  badge.textContent = `${selectedCount} of ${allRepos.length} selected`;
+
+  if (isInteractive) {
+    badge.textContent = `${selectedCount} of ${allRepos.length} selected`;
+    badge.className = 'badge badge-info';
+    if (btnSelectAll) btnSelectAll.disabled = false;
+    if (btnClearAll) btnClearAll.disabled = false;
+  } else {
+    badge.textContent = 'Viewing workspace baseline';
+    badge.className = 'badge';
+    if (btnSelectAll) btnSelectAll.disabled = true;
+    if (btnClearAll) btnClearAll.disabled = true;
+  }
 
   const q = searchQuery.toLowerCase().trim();
   const filtered = allRepos.filter(r => {
@@ -130,11 +163,13 @@ function renderList() {
     const branchBadgeClass = isProtected ? 'branch-badge protected' : 'branch-badge';
     const statusPillClass = r.isClean ? 'status-pill clean' : 'status-pill dirty';
     const statusText = r.isClean ? 'Clean' : `+${r.dirtyCount} modified`;
+    const disabledAttr = isInteractive ? '' : 'disabled';
+    const titleAttr = isInteractive ? '' : 'title="Open an active conversation to select repositories"';
 
     return `
-      <div class="repo-card ${r.selected ? 'selected' : ''}" data-path="${escapeHtml(r.path)}">
+      <div class="repo-card ${r.selected ? 'selected' : ''}" data-path="${escapeHtml(r.path)}" ${titleAttr}>
         <div class="repo-checkbox-wrap">
-          <input type="checkbox" class="repo-checkbox" ${r.selected ? 'checked' : ''} data-path="${escapeHtml(r.path)}" />
+          <input type="checkbox" class="repo-checkbox" ${r.selected ? 'checked' : ''} ${disabledAttr} data-path="${escapeHtml(r.path)}" />
         </div>
         <div class="repo-info">
           <div class="repo-title-row">
@@ -153,6 +188,7 @@ function renderList() {
   // Attach event handlers
   container.querySelectorAll('.repo-card').forEach(card => {
     card.addEventListener('click', (e) => {
+      if (!isInteractive) return;
       if (e.target.classList.contains('repo-checkbox')) return;
       const chk = card.querySelector('.repo-checkbox');
       chk.checked = !chk.checked;
@@ -162,12 +198,17 @@ function renderList() {
 
   container.querySelectorAll('.repo-checkbox').forEach(chk => {
     chk.addEventListener('change', (e) => {
+      if (!isInteractive) return;
       toggleRepo(e.target.dataset.path, e.target.checked);
     });
   });
 }
 
 function toggleRepo(path, selected) {
+  if (!conversationId) {
+    toast('Open an active chat to select repositories');
+    return;
+  }
   const repo = allRepos.find(r => r.path === path);
   if (repo) {
     repo.selected = selected;
@@ -208,7 +249,7 @@ function setupEvents() {
   const sidecar = getSidecar();
   if (sidecar && typeof sidecar.onWorkspaceChange === 'function') {
     sidecar.onWorkspaceChange((uris) => {
-      if (uris && uris.length > 0) {
+      if (Array.isArray(uris)) {
         workspaceUris = uris;
         loadRepos(false);
       }
