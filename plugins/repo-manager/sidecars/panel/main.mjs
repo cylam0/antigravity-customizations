@@ -237,9 +237,12 @@ app.api('/api/repos', (data) => {
 // POST /api/repos/select
 app.api('/api/repos/select', (data) => {
   try {
-    const wsRoots = parseWorkspaceRoots(data?.workspaceUris);
+    let wsRoots = parseWorkspaceRoots(data?.workspaceUris);
     if (wsRoots.length === 0) {
-      return jsonResponse({ success: false, reason: 'No explicit workspace provided' }, 200);
+      wsRoots = discoverFallbackRoots();
+    }
+    if (wsRoots.length === 0) {
+      return jsonResponse({ success: false, reason: 'No workspace detected' }, 200);
     }
     const conversationId = data?.conversationId ? String(data.conversationId) : null;
     const selectedPaths = Array.isArray(data?.selectedPaths) ? data.selectedPaths.map(p => resolve(normalize(p))) : [];
