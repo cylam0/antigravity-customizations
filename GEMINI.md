@@ -38,7 +38,8 @@ antigravity-customizations/
 │   ├── ponytail/                  # Minimalist/YAGNI code simplification skill
 │   ├── ponytail-review/           # Over-engineering code review skill
 │   ├── review-common/             # Shared code review persona and rubrics
-│   └── review-memory/             # Persistent Agentic Memory for code-review (branch-sensitive)
+│   ├── review-memory/             # Persistent Agentic Memory for code-review (branch-sensitive)
+│   └── review-pr-comments/        # PR review comments triage skill (/review-pr-comments)
 ├── sync.ps1                       # Bi-directional sync script (Robocopy engine)
 ├── package.json                   # NPM lifecycle scripts for deployment and verification
 ├── README.md                      # Public overview documentation
