@@ -1,4 +1,4 @@
-const sidecar = window.sidecar;
+const getSidecar = () => window.sidecar;
 const $ = (id) => document.getElementById(id);
 
 let allRepos = [];
@@ -14,6 +14,7 @@ let isSaving = false;
 // ---------------------------------------------------------------------------
 
 async function api(path, { method = 'GET', body } = {}) {
+  const sidecar = getSidecar();
   const options = { method };
   if (body !== undefined) {
     options.body = JSON.stringify(body);
@@ -50,11 +51,15 @@ function escapeHtml(str) {
 async function loadRepos(showSpinner = true) {
   if (isSaving) return; // don't clobber in-flight save
   try {
+    const sidecar = getSidecar();
     if (sidecar && typeof sidecar.getWorkspaceUris === 'function') {
-      workspaceUris = await sidecar.getWorkspaceUris().catch(() => []);
+      const uris = await sidecar.getWorkspaceUris().catch(() => []);
+      if (uris && uris.length > 0) {
+        workspaceUris = uris;
+      }
     }
-    if (sidecar && typeof sidecar.getConversationId === 'function') {
-      conversationId = await sidecar.getConversationId().catch(() => null);
+    if (sidecar && sidecar.conversationId) {
+      conversationId = sidecar.conversationId;
     }
 
     const params = new URLSearchParams();
@@ -198,6 +203,17 @@ function setupEvents() {
     $('btn-modified-only').classList.toggle('btn-primary', filterModifiedOnly);
     renderList();
   });
+
+  // Subscribe to host workspace changes
+  const sidecar = getSidecar();
+  if (sidecar && typeof sidecar.onWorkspaceChange === 'function') {
+    sidecar.onWorkspaceChange((uris) => {
+      if (uris && uris.length > 0) {
+        workspaceUris = uris;
+        loadRepos(false);
+      }
+    });
+  }
 
   // Auto-refresh when window regains focus
   window.addEventListener('focus', () => {

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,13 +25,61 @@ function parseWorkspaceRoots(workspaceUris) {
   const uris = Array.isArray(workspaceUris) ? workspaceUris : String(workspaceUris).split(',');
   return uris.map(u => {
     try {
-      const trimmed = u.trim();
+      let trimmed = u.trim();
       if (!trimmed) return null;
-      return trimmed.startsWith('file://') ? fileURLToPath(trimmed) : trimmed;
+      if (trimmed.startsWith('file://')) {
+        trimmed = fileURLToPath(trimmed);
+      } else {
+        trimmed = decodeURIComponent(trimmed);
+      }
+      return resolve(normalize(trimmed));
     } catch {
       return null;
     }
   }).filter(Boolean);
+}
+
+function discoverFallbackRoots() {
+  const roots = [];
+  const projectsDir = join(HOME, '.gemini', 'config', 'projects');
+  if (!existsSync(projectsDir)) return roots;
+
+  try {
+    const files = readdirSync(projectsDir)
+      .filter(f => f.endsWith('.json') && !f.includes('repo-manager') && !f.includes('skills-manager'))
+      .map(f => ({
+        path: join(projectsDir, f),
+        mtime: statSync(join(projectsDir, f)).mtimeMs,
+      }))
+      .sort((a, b) => b.mtime - a.mtime);
+
+    for (const file of files) {
+      try {
+        const content = JSON.parse(readFileSync(file.path, 'utf8'));
+        const resources = content?.projectResources?.resources || [];
+        for (const res of resources) {
+          const folderUri = res?.gitFolder?.folderUri;
+          if (folderUri) {
+            try {
+              const fsPath = folderUri.startsWith('file://') ? fileURLToPath(folderUri) : folderUri;
+              const canonical = resolve(normalize(fsPath));
+              if (existsSync(canonical) && !roots.includes(canonical)) {
+                roots.push(canonical);
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }
+        if (roots.length > 0) break; // Use most recent project
+      } catch {
+        // ignore
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return roots;
 }
 
 function getStateFilePath(wsRoots = []) {
@@ -109,7 +157,11 @@ function scanForGitRepos(wsRoots) {
   const discovered = new Map();
   const IGNORED_NAMES = new Set(['node_modules', '.git', '.data', '.cache', 'dist', 'build', 'out', 'target', '.agents', '.gemini']);
 
-  for (const root of wsRoots) {
+  const targets = (Array.isArray(wsRoots) && wsRoots.length > 0)
+    ? wsRoots
+    : discoverFallbackRoots();
+
+  for (const root of targets) {
     const canonicalRoot = resolve(normalize(root));
     if (!existsSync(canonicalRoot)) continue;
 
