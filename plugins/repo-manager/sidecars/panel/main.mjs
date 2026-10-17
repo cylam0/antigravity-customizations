@@ -125,12 +125,13 @@ function getRepoMetadata(repoPath, workspaceRoot) {
 
   const isProtected = ['main', 'master', 'production'].includes(branch) || branch.startsWith('release/');
   const folderName = basename(repoPath);
-  const relativePath = workspaceRoot ? normalize(repoPath).replace(normalize(workspaceRoot), '').replace(/^[\\/]/, '') : folderName;
+  const rel = workspaceRoot ? normalize(repoPath).replace(normalize(workspaceRoot), '').replace(/^[\\/]/, '') : folderName;
+  const relativePath = rel || '(workspace root)';
 
   return {
     path: repoPath,
     name: folderName,
-    relativePath: relativePath || '.',
+    relativePath,
     branch,
     isProtected,
     isClean: dirtyCount === 0,
@@ -168,7 +169,11 @@ function scanForGitRepos(wsRoots) {
       const subPath = join(canonicalRoot, entry.name);
 
       if (existsSync(join(subPath, '.git'))) {
-        discovered.set(subPath, getRepoMetadata(subPath, canonicalRoot));
+        // Skip submodules: modern git submodules have a .git file (pointer), or report a superproject
+        const gitStat = statSync(join(subPath, '.git'));
+        if (!gitStat.isFile() && !runGit(subPath, ['rev-parse', '--show-superproject-working-tree'])) {
+          discovered.set(subPath, getRepoMetadata(subPath, canonicalRoot));
+        }
       } else {
         // Depth 2 scan (e.g. packages/repoA or services/repoB)
         let subEntries;
@@ -181,7 +186,10 @@ function scanForGitRepos(wsRoots) {
           if (!subEntry.isDirectory() || IGNORED_NAMES.has(subEntry.name)) continue;
           const nestedPath = join(subPath, subEntry.name);
           if (existsSync(join(nestedPath, '.git'))) {
-            discovered.set(nestedPath, getRepoMetadata(nestedPath, canonicalRoot));
+            const nestedStat = statSync(join(nestedPath, '.git'));
+            if (!nestedStat.isFile() && !runGit(nestedPath, ['rev-parse', '--show-superproject-working-tree'])) {
+              discovered.set(nestedPath, getRepoMetadata(nestedPath, canonicalRoot));
+            }
           }
         }
       }
