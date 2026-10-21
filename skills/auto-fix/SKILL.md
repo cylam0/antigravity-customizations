@@ -74,25 +74,37 @@ Use the `ask_question` tool to solicit the user's decision:
 
 ---
 
-## Stage 5: Formulate Surgical Implementation Plan (Plan Freeze)
+## Stage 5: Formulate Surgical Implementation Plan (Plan Freeze & Artifact)
 
 Before making any modifications to production code:
 1. Formulate a step-by-step surgical implementation plan for the chosen fix:
    - Target files, functions, and line ranges.
    - Planned minimal diff (exact replacement snippet).
    - Targeted verification test command.
-2. **MANDATORY VISIBLE OUTPUT**: You **MUST** output this complete plan visibly in chat before touching any code:
-   ```markdown
-   ### 📋 Stage 5: Frozen Implementation Plan (🔒 LOCKED)
-   - **Target File(s)**: `path/to/file` (functions / lines)
-   - **Planned Minimal Diff**:
-     ```diff
-     <exact replacement snippet>
+2. **CREATE PLAN ARTIFACT (MANDATORY)**:
+   - Write the complete plan as an artifact file at `<Artifact Directory>/auto_fix_plan.md` using `write_file` with `ArtifactMetadata`:
+     - `Summary`: "Frozen surgical implementation plan for auto-fix"
+     - `UserFacing`: `true`
+     - `RequestFeedback`: `false`
+   - Inside the artifact, detail:
+     - Root cause summary
+     - Target files & line numbers
+     - Full proposed replacement diff
+     - Verification command
+     - Lock banner: `> [!IMPORTANT]\n> This plan is FROZEN and IMMUTABLE. Stages 6–8 must strictly adhere to this specification.`
+3. **VISIBLE CHAT NOTIFICATION**:
+   - In chat, present a clickable link to the newly created artifact and summarize the target scope:
+     ```markdown
+     ### 📋 Stage 5: Frozen Implementation Plan (🔒 LOCKED)
+     The implementation plan has been generated as a dedicated artifact:
+     👉 [auto_fix_plan.md](file:///<absolute-path-to-artifact>)
+
+     - **Target File(s)**: `path/to/file`
+     - **Planned Scope**: Minimal surgical fix applying `ponytail`
+     - **Verification Command**: `<command to run necessary reproduction test only>`
+     - **Status**: 🔒 Frozen — no changes to this plan are permitted during Stages 6–8.
      ```
-   - **Targeted Test Command**: `<command to run necessary reproduction test only>`
-   - **Status**: 🔒 Frozen — no changes to this plan are permitted during Stages 6–8.
-   ```
-3. **PLAN FREEZE**: Once formulated and displayed, this plan is **strictly locked and immutable**. Stages 6 through 8 must strictly execute against this exact printed plan and are forbidden from altering scope, expanding diffs, or introducing ad-hoc redesigns.
+4. **PLAN FREEZE**: Once written to the artifact, this plan is **strictly locked and immutable**. Stages 6 through 8 must strictly execute against this artifact and are forbidden from altering scope, expanding diffs, or introducing ad-hoc redesigns.
 
 ---
 
@@ -143,9 +155,9 @@ Present a clear, structured report to the user:
 3. **Regression Audit Results**: Findings from the subagent and pass status of edge-case tests.
 4. **Simplicity Rating**: Confirmation of minimal diff and zero over-engineering.
 5. **Plan vs. Reality Audit**:
-   - Compare the final code changes delivered in Stage 6 and any follow-up actions taken in Stage 7 against the frozen Stage 5 plan displayed earlier.
+   - Compare the final code changes delivered in Stage 6 and any follow-up actions taken in Stage 7 against the frozen artifact: [`auto_fix_plan.md`](file:///<path-to-artifact>).
    - Include a plan compliance checklist:
-     - Target files matched plan? (Yes / No)
-     - Diff scope matched plan without extra modifications? (Yes / No)
-     - Verification test command matched plan? (Yes / No)
-   - Explicitly certify whether the implementation complied 100% with the frozen plan, or detail any deviations made and the reasons why.
+     - Target files matched artifact plan? (Yes / No)
+     - Diff scope matched artifact plan without extra modifications? (Yes / No)
+     - Verification test command matched artifact plan? (Yes / No)
+   - Explicitly certify whether the implementation complied 100% with the frozen plan artifact, or detail any deviations made and the reasons why.
