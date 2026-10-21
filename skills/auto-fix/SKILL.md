@@ -77,11 +77,22 @@ Use the `ask_question` tool to solicit the user's decision:
 ## Stage 5: Formulate Surgical Implementation Plan (Plan Freeze)
 
 Before making any modifications to production code:
-1. Outline a step-by-step surgical implementation plan for the chosen fix:
+1. Formulate a step-by-step surgical implementation plan for the chosen fix:
    - Target files, functions, and line ranges.
-   - Exact minimal diff structure.
-   - Verification command (targeted reproduction test).
-2. **PLAN FREEZE**: Once formulated, this plan is **strictly locked and immutable**. Stages 6 through 8 must strictly adhere to this plan and are forbidden from altering scope or introducing ad-hoc redesigns.
+   - Planned minimal diff (exact replacement snippet).
+   - Targeted verification test command.
+2. **MANDATORY VISIBLE OUTPUT**: You **MUST** output this complete plan visibly in chat before touching any code:
+   ```markdown
+   ### 📋 Stage 5: Frozen Implementation Plan (🔒 LOCKED)
+   - **Target File(s)**: `path/to/file` (functions / lines)
+   - **Planned Minimal Diff**:
+     ```diff
+     <exact replacement snippet>
+     ```
+   - **Targeted Test Command**: `<command to run necessary reproduction test only>`
+   - **Status**: 🔒 Frozen — no changes to this plan are permitted during Stages 6–8.
+   ```
+3. **PLAN FREEZE**: Once formulated and displayed, this plan is **strictly locked and immutable**. Stages 6 through 8 must strictly execute against this exact printed plan and are forbidden from altering scope, expanding diffs, or introducing ad-hoc redesigns.
 
 ---
 
@@ -132,5 +143,9 @@ Present a clear, structured report to the user:
 3. **Regression Audit Results**: Findings from the subagent and pass status of edge-case tests.
 4. **Simplicity Rating**: Confirmation of minimal diff and zero over-engineering.
 5. **Plan vs. Reality Audit**:
-   - Compare the final code changes and actions taken in Stages 6 and 7 against the frozen Stage 5 plan.
-   - Explicitly certify whether the implementation complied 100% with the plan, or detail any deviations made and the reasons why.
+   - Compare the final code changes delivered in Stage 6 and any follow-up actions taken in Stage 7 against the frozen Stage 5 plan displayed earlier.
+   - Include a plan compliance checklist:
+     - Target files matched plan? (Yes / No)
+     - Diff scope matched plan without extra modifications? (Yes / No)
+     - Verification test command matched plan? (Yes / No)
+   - Explicitly certify whether the implementation complied 100% with the frozen plan, or detail any deviations made and the reasons why.
