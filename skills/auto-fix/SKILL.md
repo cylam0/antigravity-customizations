@@ -120,6 +120,26 @@ Carry out the Stage 5 plan step-by-step applying the **`ponytail`** skill princi
 3. Re-run the Stage 2 reproduction test (running **only that necessary test**).
 4. Verify the test transitions from **RED** to **GREEN**.
 
+### Controlled Plan Invalidation & Revision Protocol
+If the planned diff fails to make the test pass or hits a technical blocker during implementation:
+- **Zero Silent Deviation**: Never quietly edit unrelated files or expand scope without logging.
+- **Case A: Minor Tactical Amendment** (same strategy, e.g. missing null guard, type cast, or import):
+  1. Append an amendment entry to `<Artifact Directory>/auto_fix_plan.md`:
+     ```markdown
+     ### 📝 Amendment #1: <brief description>
+     - **Reason**: <why adjustment was necessary to pass test>
+     - **Adjusted Diff**: <new minimal replacement snippet>
+     ```
+  2. Note in chat: `> ℹ️ Plan Amendment #1: [brief reason]`
+  3. Apply the amendment and re-verify the Stage 2 reproduction test.
+- **Case B: Major Strategic Invalidation** (approach is fundamentally unviable):
+  1. **Halt immediately.** Do not touch further files.
+  2. Explain the fundamental roadblock clearly.
+  3. Call `ask_question` with options:
+     - Pivot to Alternative Strategy (describe approach)
+     - Abort fix workflow
+  4. If user approves pivot, update `auto_fix_plan.md` with the new plan and resume Stage 6. If user aborts, preserve tests and halt.
+
 ---
 
 ## Stage 7: Multi-Dimensional Post-Fix Review
@@ -155,9 +175,10 @@ Present a clear, structured report to the user:
 3. **Regression Audit Results**: Findings from the subagent and pass status of edge-case tests.
 4. **Simplicity Rating**: Confirmation of minimal diff and zero over-engineering.
 5. **Plan vs. Reality Audit**:
-   - Compare the final code changes delivered in Stage 6 and any follow-up actions taken in Stage 7 against the frozen artifact: [`auto_fix_plan.md`](file:///<path-to-artifact>).
+   - Compare the final code changes delivered in Stage 6 and any follow-up actions taken in Stage 7 against the frozen artifact: [`auto_fix_plan.md`](file:///<path-to-artifact>) and any logged amendments.
    - Include a plan compliance checklist:
      - Target files matched artifact plan? (Yes / No)
-     - Diff scope matched artifact plan without extra modifications? (Yes / No)
+     - Diff scope matched artifact plan + logged amendments without extra modifications? (Yes / No)
+     - Any amendments logged and justified? (Yes / None needed / Unlogged divergence)
      - Verification test command matched artifact plan? (Yes / No)
-   - Explicitly certify whether the implementation complied 100% with the frozen plan artifact, or detail any deviations made and the reasons why.
+   - Explicitly certify whether the implementation complied 100% with the frozen plan (or approved amended plan), or detail any deviations made and the reasons why.
