@@ -32,6 +32,7 @@ antigravity-customizations/
 │   └── modern-web-guidance-plugin/# Web development guidance plugin
 ├── skills/                        # Standalone custom skills
 │   ├── auto-fix/                  # 9-stage TDD bug-fixing workflow (/fix, /auto-fix)
+│   ├── auto-proceed-plan/         # Autonomous plan execution workflow (/auto-proceed-plan)
 │   ├── auto-review-pr/            # PR review triage with multi-select auto-fix (/auto-review-pr)
 │   ├── codebase-guard/            # Issue library and tagging audit skill
 │   ├── code-review/               # Multi-agent review slash command (/code-review)
