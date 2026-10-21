@@ -3,13 +3,13 @@ name: auto-fix
 description: >-
   CRITICAL: ONLY activate this skill when the user explicitly triggers the `/fix` or `/auto-fix` slash command.
   DO NOT auto-trigger or invoke this skill for general coding, debugging, refactoring, or problem-solving tasks.
-  When invoked via `/fix` or `/auto-fix`, executes a systematic 8-stage TDD bug-fixing workflow with interactive selection, plan freezing, ponytail minimal fix, and subagent regression verification.
+  When invoked via `/fix` or `/auto-fix`, executes a systematic 9-stage TDD bug-fixing workflow with interactive selection, plan freezing, ponytail minimal fix, subagent regression verification, and automated git commit-push.
 argument-hint: "<problem description>"
 ---
 
 # Auto-Fix Workflow
 
-Systematic, test-driven bug-fixing workflow enforcing targeted test runs, plan immutability, surgical minimal code changes via `ponytail`, and independent subagent regression review.
+Systematic, test-driven bug-fixing workflow enforcing targeted test runs, plan immutability, surgical minimal code changes via `ponytail`, independent subagent regression review, and atomic git commit & push.
 
 ---
 
@@ -102,9 +102,9 @@ Before making any modifications to production code:
      - **Target File(s)**: `path/to/file`
      - **Planned Scope**: Minimal surgical fix applying `ponytail`
      - **Verification Command**: `<command to run necessary reproduction test only>`
-     - **Status**: 🔒 Frozen — no changes to this plan are permitted during Stages 6–8.
+     - **Status**: 🔒 Frozen — no changes to this plan are permitted during Stages 6–9.
      ```
-4. **PLAN FREEZE**: Once written to the artifact, this plan is **strictly locked and immutable**. Stages 6 through 8 must strictly execute against this artifact and are forbidden from altering scope, expanding diffs, or introducing ad-hoc redesigns.
+4. **PLAN FREEZE**: Once written to the artifact, this plan is **strictly locked and immutable**. Stages 6 through 9 must strictly execute against this artifact and are forbidden from altering scope, expanding diffs, or introducing ad-hoc redesigns.
 
 ---
 
@@ -182,3 +182,50 @@ Present a clear, structured report to the user:
      - Any amendments logged and justified? (Yes / None needed / Unlogged divergence)
      - Verification test command matched artifact plan? (Yes / No)
    - Explicitly certify whether the implementation complied 100% with the frozen plan (or approved amended plan), or detail any deviations made and the reasons why.
+
+---
+
+## Stage 9: Automated Git Commit & Push (Applying `git-commit-push`)
+
+Upon completing the Stage 8 report, automatically commit and push the verified changes following the **`git-commit-push`** skill protocol:
+
+1. **Git Worktree Verification**:
+   - Check if inside a git worktree (`git rev-parse --is-inside-work-tree`). If not a git repository, skip this stage cleanly.
+
+2. **Pre-Flight Fast Leak & Size Scan**:
+   - Ensure no secrets or sensitive files (`.env*`, `*.key`, `*.pem`, `token.txt`, `credentials.json`) are untracked or modified.
+   - Ensure no large files (> 5MB) were added.
+
+3. **Surgical Staging**:
+   - Stage ONLY the files modified by the fix, the reproduction test file(s), and newly created regression test file(s):
+     ```bash
+     git add <modified_files> <test_files>
+     ```
+   - Do NOT run blind `git add .` to avoid staging unrelated workspace changes.
+
+4. **Conventional Commit Message**:
+   - Synthesize a Conventional Commit message from the root cause and fix:
+     ```text
+     fix(<scope>): <imperative summary under 72 chars>
+
+     - Root cause: <concise summary>
+     - Fix: <brief summary of minimal fix>
+     - Tests: reproduction and subagent regression tests verified
+     ```
+
+5. **Atomic Commit & Push**:
+   - Execute commit and push in one compound command with upstream fallback:
+     - **PowerShell**:
+       ```powershell
+       git commit -m "<message>"; if ($LASTEXITCODE -eq 0) { git push; if ($LASTEXITCODE -ne 0) { git push -u origin (git rev-parse --abbrev-ref HEAD) } }
+       ```
+     - **Bash / POSIX**:
+       ```bash
+       git commit -m "<message>" && (git push || git push -u origin $(git rev-parse --abbrev-ref HEAD))
+       ```
+
+6. **Summary Output**:
+   - Output the concise 3-line commit summary:
+     - **Commit**: `<hash>` — `<message title>`
+     - **Branch**: `<branch>` (pushed to remote)
+     - **Files**: List of committed files
