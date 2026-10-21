@@ -31,6 +31,8 @@ antigravity-customizations/
 │   │   └── README.md
 │   └── modern-web-guidance-plugin/# Web development guidance plugin
 ├── skills/                        # Standalone custom skills
+│   ├── auto-fix/                  # 9-stage TDD bug-fixing workflow (/fix, /auto-fix)
+│   ├── auto-review-pr/            # PR review triage with multi-select auto-fix (/auto-review-pr)
 │   ├── codebase-guard/            # Issue library and tagging audit skill
 │   ├── code-review/               # Multi-agent review slash command (/code-review)
 │   ├── git-commit-push/           # Safe commit & push with branch confirmation & leak guard
