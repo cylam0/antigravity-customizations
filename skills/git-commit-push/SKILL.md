@@ -1,18 +1,26 @@
 ---
 name: git-commit-push
 description: >-
-  Safe, structured, high-speed git commit and push workflow with targeted formatting,
-  strict no-force-push, no pre-push test runs, Git LFS / large file warnings,
-  surgical staging, and auto-commit with conventional commit messages. Use whenever
-  the user asks to commit, push, save changes to git, or triggers /commit or /git-commit-push.
+  Safe, structured, high-speed git commit and push workflow with strict no-force-push,
+  no pre-push test runs, Git LFS / large file warnings, surgical staging, conventional
+  commits, and auto-upstream tracking. Supports commit-only (/commit) and commit-and-push
+  (/git-commit-push, /commit-push).
 ---
 
 # Git Commit & Push Workflow
 
-A 2-phase high-speed pipeline for safely formatting changed files, staging surgically, committing with conventional messages, and pushing without tool roundtrip latency.
+A high-speed, 2-phase pipeline for safely staging surgical changes, generating conventional commit messages, and pushing with automatic upstream tracking.
 
 > [!NOTE]
 > **Branch Confirmation**: Handled by the **Pre-Modification & Commit Branch Confirmation Guard** in `GEMINI.md`. If the active branch has not yet been confirmed in this conversation (e.g. committing pre-existing changes), ensure the user confirms the branch once before staging and committing.
+
+---
+
+## Operational Modes
+
+The workflow supports two modes based on caller intent or invocation:
+1. **Commit-Only** (`/commit` or explicit "commit" requests): Stages surgically and creates a conventional commit locally without pushing to remote.
+2. **Commit & Push** (`/git-commit-push`, `/commit-push`, explicit "commit and push", or automated pipelines like `auto-fix` and `auto-proceed-plan`): Stages surgically, creates a conventional commit, and pushes to remote with automatic upstream fallback.
 
 ---
 
@@ -22,12 +30,12 @@ To minimize tool latency and eliminate sequential roundtrips, execute this workf
 
 ```mermaid
 flowchart LR
-    P1["Turn 1: Pre-Check & Stage<br/>- Status & branch<br/>- Secret & size scan<br/>- Format modified files only<br/>- Stage & fast debug check"] --> P2["Turn 2: Commit & Push<br/>- Conventional commit<br/>- Atomic commit & push<br/>- Auto-upstream tracking"]
+    P1["Turn 1: Pre-Flight & Stage<br/>- Status & branch<br/>- Secret & size scan<br/>- Surgical staging"] --> P2["Turn 2: Commit (± Push)<br/>- Conventional commit<br/>- Local commit OR atomic push<br/>- Auto-upstream tracking"]
 ```
 
 ---
 
-## Phase 1: Pre-Check, Targeted Formatting & Surgical Staging (Turn 1)
+## Phase 1: Pre-Flight Safety & Surgical Staging (Turn 1)
 
 Execute the pre-flight inspection and staging in **one single compound command**:
 
@@ -41,33 +49,20 @@ Directly evaluate the `git status -s` output:
 - **Secret Files**: If any untracked or modified file matches sensitive patterns (`.env*`, `*.pem`, `*.key`, `*.pkcs12`, `*.pfx`, `id_rsa`, `id_ed25519`, `credentials.json`, `service-account*.json`, `token.txt`, `.npmrc`, `.pypirc`), **ABORT** immediately and alert the user to add it to `.gitignore`.
 - **Large Files (> 5MB)**: If any modified/untracked file exceeds 5MB or contains untracked model/data weights (`.bin`, `.onnx`, `.tar.gz`, `.iso`, `.sqlite`), warn the user and check for Git LFS before staging.
 
-### 3. Targeted Formatting (Changed Files Only — NO Whole-Repo Scans)
-Do **NOT** run whole-repository formatters (e.g. `npm run format`, `black .`, `cargo fmt`). Format **only the specific modified files**:
-- **Node / TS / JS**: If prettier is available: `npx prettier --write <modified_files>`
-- **Python**: If ruff/black is available: `ruff format <modified_files>` or `black <modified_files>`
-- **Go**: `gofmt -w <modified_files>`
-- **Rust**: `rustfmt <modified_files>`
-- **No formatter configured**: Skip immediately to staging.
-- **ERROR GATE**: If the formatter exits with a non-zero exit code, **STOP IMMEDIATELY**, show the error, and do not stage or commit.
-- **NO TESTS**: Never run test suites (`npm test`, `pytest`, `cargo test`) before push unless explicitly requested.
-
-### 4. Surgical Staging & Native Fast Debug Grep
-- Stage only the relevant modified files (strictly avoid blind `git add .`):
+### 3. Surgical Staging & Diff Confirmation
+- Stage only the relevant modified or newly created files (strictly avoid blind `git add .` or `git add -A`):
   ```bash
   git add path/to/file1.ts path/to/file2.ts
   ```
-- **Fast Debug Statement Check (Native Git Grep)**:
-  Run native regex scan on staged content without dumping diff text into context:
+- **NO TESTS OR IN-FLIGHT FORMATTING**: Never run test suites (`npm test`, `pytest`, `cargo test`) or ad-hoc formatters during the commit workflow unless explicitly requested. Formatting is the responsibility of authoring tools, IDE format-on-save, or pre-commit hooks.
+- Confirm staged diff stat:
   ```bash
-  git diff --cached -G"(console\.log|debugger|print\(|dump\()" --name-only
+  git diff --cached --stat
   ```
-  - If output is empty, proceed immediately to Phase 2.
-  - If matches are found, verify whether they are intentional or leftover debug code before committing.
-- Confirm staged diff stat: `git diff --cached --stat`
 
 ---
 
-## Phase 2: Atomic Commit & Upstream-Aware Push (Turn 2)
+## Phase 2: Conventional Commit & Execution (Turn 2)
 
 ### 1. Conventional Commit Message Synthesis
 From the staged diff stat, synthesize a Conventional Commit message:
@@ -78,7 +73,16 @@ From the staged diff stat, synthesize a Conventional Commit message:
 ```
 Allowed types: `feat`, `fix`, `refactor`, `perf`, `docs`, `style`, `test`, `chore`, `ci`.
 
-### 2. Atomic Commit & Push Execution
+### 2. Atomic Execution
+
+#### Mode A: Commit-Only (Local)
+Execute the commit locally without touching remote:
+- **PowerShell / Bash**:
+  ```bash
+  git commit -m "<message>"
+  ```
+
+#### Mode B: Commit & Push (Remote with Upstream Fallback)
 Execute commit and push in **one single atomic compound execution** with automatic upstream fallback:
 - **PowerShell**:
   ```powershell
@@ -98,5 +102,5 @@ Execute commit and push in **one single atomic compound execution** with automat
 ### 4. Completion Output
 Output a concise 3-line summary:
 - **Commit**: `<hash>` — `<message title>`
-- **Branch**: `<branch>` (pushed to remote)
+- **Branch**: `<branch>` (local commit only | pushed to remote)
 - **Files**: List of committed files
