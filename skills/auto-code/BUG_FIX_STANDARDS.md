@@ -9,6 +9,7 @@ Standardized reference for triaging, reproducing, and verifying bug fixes within
 Across all testing and verification stages:
 - **Never run monolithic or entire-workspace test suites.** Blindly executing full test suites wastes time and risks failure on unrelated pre-existing flakiness.
 - **Target only the specific file or pattern**: Execute only the isolated reproduction test or affected module tests (e.g., `npm test -- path/to/test.test.mjs`, `pytest tests/test_module.py::test_case`, `go test ./pkg/... -run TestName`).
+- **Terminal Log Suppression**: Use dot, quiet, or bail flags (e.g., `npm test -- --reporter=dot`, `pytest -q --tb=short`, `go test -short`) to suppress verbose outputs from flooding the conversation transcript.
 
 ---
 

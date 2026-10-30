@@ -99,11 +99,16 @@ Before classifying any review comment:
 
 ---
 
-## 3. Advisory Triage Report Format
+## 3. Advisory Triage Report & Artifact Split
 
-Render the complete triage analysis directly in the visible chat stream before requesting user decisions:
+To protect the parent context from token exhaustion, the triage report is divided:
 
-### Format Template
+1. **Visible Chat Stream**:
+   - Render the Executive Summary Table directly in chat immediately before invoking `ask_question`.
+2. **Plan Artifact Archiving (`auto_code_plan.md`)**:
+   - Write the Detailed Findings Breakdown (root causes, failure modes, and candidate replacement diffs) into `<Artifact Directory>/auto_code_plan.md`.
+
+### Chat Format Template
 
 ```markdown
 ### 📋 PR Review Comments Triage Report
@@ -115,19 +120,22 @@ Render the complete triage analysis directly in the visible chat stream before r
 | `[COMMENT-1]` | `<file>:<line>` | @`<reviewer>` | `CRITICAL` | `VALID` | `Addressed` | Fix via ponytail |
 | `[COMMENT-2]` | `<file>:<line>` | @`<reviewer>` | `LOW` | `DISPUTABLE` | `Incorrect` | Technical pushback / No change |
 
----
+👉 Detailed diffs and analysis archived in [auto_code_plan.md](file:///<path-to-artifact>)
+```
 
+### Artifact Breakdown Format (Recorded in `auto_code_plan.md`)
+
+```markdown
 ### Detailed Findings Breakdown
 
 #### `[COMMENT-1]` `<file>:<line>` by @`<reviewer>`
 > "<quoted reviewer comment>"
 
 - **Assessment**: `[VALID - <SEVERITY>]` or `[DISPUTABLE / NO CHANGE NEEDED]`
-- **Target Resolution**: `Addressed (ADDRESSED)` (fixed), `Incorrect (INVALID)` (disputable), or `Won't fix (WONT_FIX)` (deferred)
+- **Target Resolution**: `Addressed (ADDRESSED)`, `Incorrect (INVALID)`, or `Won't fix (WONT_FIX)`
 - **Root Cause & Technical Analysis**:
-  - What the current code does vs what reviewer identified.
-  - Failure modes, triggers, and blast radius.
-- **Actionable Replacement Diff** (if code change needed):
+  - Behavior, trigger conditions, and blast radius.
+- **Actionable Replacement Diff**:
   ```diff
   - old code
   + suggested replacement code

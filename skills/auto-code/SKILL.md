@@ -47,20 +47,25 @@ Check the active `<Artifact Directory>` for an existing implementation plan arti
 
 ## Phase A: No Plan (Intent Triage & Plan Formulation)
 
-### A.1 Intent Classification
-Determine the user's intent from the prompt and workspace context:
-1. **PR / Review Comments**: Initiated with PR reference or asking to address review feedback.
-2. **Bug / Issue**: Initiated with a defect report, error log, or broken behavior.
-3. **Feature / Task**: Initiated with a request to create, update, or refactor functionality.
+### A.1 Intent Classification & Progressive Disclosure
+Determine user intent from prompt and workspace context (do **NOT** read companion standards upfront):
+1. **PR / Review Comments**: Initiated with PR reference or review feedback -> Proceed to A.2 (Subagent triage).
+2. **Bug / Issue**: Initiated with a defect report or broken behavior -> Read [`BUG_FIX_STANDARDS.md`](./BUG_FIX_STANDARDS.md) and proceed to A.3.
+3. **Feature / Task**: Initiated with new functionality or refactor -> Proceed to A.4 (Inline specification).
 
 ### A.2 PR Review Comment Triage (When Intent = Review Comments)
-Follow the standards defined in [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md):
-1. **Fetch & Resolve**: Retrieve unresolved threads (`isResolved == false`) and thread IDs via GitHub GraphQL API.
-2. **Mandatory Code Inspection**: Call `read_file` on target code files and lines. Never triage from comment text alone.
-3. **Filter & Dismissal Check**: Exclude already-fixed code and match against `review-memory` dismissals.
-4. **Advisory Triage Report**: Render the full executive summary and breakdown table in chat.
-5. **Interactive Selection**: Call `ask_question` (multi-select) for user to accept comments to fix.
-6. For accepted comments, formulate the target diffs.
+Follow [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) using subagent delegation:
+1. **Subagent Delegation (Preferred)**:
+   Invoke subagent via `invoke_subagent`:
+   - `TypeName: "self"`
+   - `Role: "PR Review Triage Analyst"`
+   - `Model: "flash"`
+   - Prompt subagent to fetch GraphQL threads per `PR_REVIEW_STANDARDS.md`, group file reads, and return the formatted Executive Summary Table and candidate diffs.
+2. **Adaptive Fallback**:
+   If subagent tools are unavailable, read `PR_REVIEW_STANDARDS.md` and triage in-process with a strict cap of 10 unresolved threads.
+3. **Chat vs Artifact Split**:
+   - Render the Executive Summary Table directly in chat alongside `ask_question` (multi-select).
+   - Write full candidate replacement diffs and technical analyses into the draft plan artifact.
 
 ### A.3 Bug Reproduction (When Intent = Bug / Issue)
 Follow the standards defined in [`BUG_FIX_STANDARDS.md`](./BUG_FIX_STANDARDS.md):
@@ -116,6 +121,7 @@ Inspect the drafted plan and tradeoff analysis:
    - Lock banner: `> [!IMPORTANT]\n> ### 🔒 PLAN FROZEN & IMMUTABLE\n> Auto-code execution active.`
    - Preserve any original source plan artifact intact.
 2. Present a clickable link to `auto_code_plan.md` in chat.
+3. **Context Baseline Checkpoint**: Once `auto_code_plan.md` is frozen, earlier exploratory context is archived; the agent strictly treats `auto_code_plan.md` as the authoritative execution baseline.
 
 ### B.3 Pre-Flight Baseline Verification
 1. Run the targeted baseline test or build command to ensure the current workspace is green before modifications.
@@ -161,7 +167,7 @@ Determine review tier:
 - **Fast-Path** (Single file, < 30 lines changed, focused fix/task):
   1. **Dynamic Caller & Regression Verification**:
      - Inspect `git diff` and trace direct callers of the modified function or component.
-     - Execute targeted unit tests for affected callers or execute a focused boundary test case (running **necessary tests only**).
+     - For multi-caller or module boundaries, spawn subagent (`Role: "Regression Tester & Verifier"`, `Model: "flash"`) to run targeted caller tests and isolate test logs from parent context.
      - Confirm zero regressions in surrounding callers and immediate modules.
   2. **Ponytail Simplicity Audit**:
      - Verify zero unnecessary abstractions, speculative wrappers, or dead parameters.
@@ -195,11 +201,7 @@ Before finalization, compare the actual modified codebase state (`git diff`) aga
 1. **Target Scope Check**: Did all modified files and functions strictly match the planned targets without unrequested file modifications?
 2. **Diff Minimization Check**: Does the diff contain only necessary code to satisfy the plan, with zero extraneous refactoring or boilerplate?
 3. **Amendment Justification Check**: Were all deviations or tactical amendments logged and justified in the plan artifact?
-4. **Plan Compliance Checklist**: Include a structured checklist in the final report:
-   - Target files matched artifact plan? (Yes / No)
-   - Diff scope matched artifact plan + logged amendments without extra modifications? (Yes / No)
-   - Any amendments logged and justified? (Yes / None needed / Unlogged divergence)
-   - Targeted verification tests verified? (Yes / No)
+4. **Plan Compliance Checklist**: Record the full structured checklist inside `auto_code_plan.md`. In chat, present only a 1-line compliance certification and link to the plan artifact.
 5. **Certification**: Explicitly certify whether the implementation complied 100% with the frozen plan (or approved amendments), or detail any unlogged deviations.
 
 ### D.4 Visual Verification Guard (Mandatory for Frontend Appearance Changes)
