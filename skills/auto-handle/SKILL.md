@@ -175,5 +175,5 @@ Before finalization, compare the actual modified codebase state (`git diff`) aga
 ### D.4 Clean Completion & Finalization
 When verification is green, the Plan Compliance Audit is confirmed, and no blocking review findings remain:
 1. Present the Consolidated Status Report & Plan Compliance Checklist in chat.
-2. If working on PR review comments, reply to and resolve threads on GitHub per [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) (`ADDRESSED`, `INVALID`, or `WONT_FIX`).
+2. If working on PR review comments, reply to and resolve threads on GitHub per [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) (`ADDRESSED`, `INVALID`, or `WONT_FIX`) and render the PR Resolution Summary Table.
 3. Commit and push changes safely adhering to [`git-commit-push`](../git-commit-push/SKILL.md).

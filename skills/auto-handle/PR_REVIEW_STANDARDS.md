@@ -130,7 +130,7 @@ Render the complete triage analysis directly in the visible chat stream before r
 
 ---
 
-## 4. Interactive User Selection
+## 4. Interactive User Selection & Decision Recording
 
 Prompt the user using `ask_question` with `is_multi_select: true`:
 - List each actionable comment referencing its ID, location, severity, and brief fix summary:
@@ -140,6 +140,16 @@ Prompt the user using `ask_question` with `is_multi_select: true`:
 
 ### Anti-Premature Execution Rule
 The tool call `ask_question` **must** be accompanied by the full triage report in the same turn. Never ask without presenting the analysis.
+
+### Record Decisions in Review Memory
+- **Accepted Comments**:
+  ```bash
+  node skills/review-memory/scripts/memory-store.mjs record-decision --id COMMENT-<N> --status accepted --rationale "Accepted during /auto-handle"
+  ```
+- **Dismissed Comments**:
+  ```bash
+  node skills/review-memory/scripts/memory-store.mjs record-decision --id COMMENT-<N> --status dismissed --rationale "<reason>"
+  ```
 
 ---
 
@@ -153,14 +163,19 @@ GitHub GraphQL enum `PullRequestReviewThreadResolutionReason`:
 - **`INVALID`** (*"Incorrect"* in GitHub UI): Comment was evaluated as a false positive, invalid assumption, or intentional behavior.
 - **`WONT_FIX`**: Comment was valid but not selected for fixing (deferred / out of scope).
 
-### Execution Mutations
+### Execution Protocol & Resilience
+- **No Direct Tagging**: Do **NOT** include `@<reviewer>` mentions in reply bodies. GitHub notifies thread participants automatically without extra pings.
+- **Best-Effort Processing**: Iterate through every triaged comment thread. If an individual GraphQL call fails (e.g., permissions or network glitch), log the error and continue processing remaining threads.
+- **Fallback Snippets**: For any failed API calls, provide ready-to-copy reply snippets in the final report for manual entry.
+
+### GraphQL Mutations
 
 1. **Add Reply to Thread**:
    ```bash
    gh api graphql -f query='
      mutation($threadId: ID!, $body: String!) {
        addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $threadId, body: $body }) {
-         comment { id }
+         comment { id url }
        }
      }
    ' -F threadId="<threadId>" -F body="<draftReply>"
@@ -170,9 +185,24 @@ GitHub GraphQL enum `PullRequestReviewThreadResolutionReason`:
    ```bash
    gh api graphql -f query='
      mutation($threadId: ID!, $reason: PullRequestReviewThreadResolutionReason!) {
-       resolveReviewThread(input: { threadId: $threadId, reason: $reason }) {
-         thread { isResolved }
+       resolveReviewThread(input: { threadId: $threadId, resolutionReason: $reason }) {
+         thread { id isResolved resolutionReason }
        }
      }
    ' -F threadId="<threadId>" -F reason="<ADDRESSED|INVALID|WONT_FIX>"
    ```
+
+---
+
+## 6. PR Resolution Summary Table
+
+Render a closing summary in chat:
+
+```markdown
+### 📋 PR Resolution Summary Table
+| ID | Reviewer | Location | Target Resolution | GitHub Status | Reply Summary / Commit |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `[COMMENT-1]` | @`alice` | `src/api.ts:42` | `Addressed` | `Resolved ✅` | Commit `<hash>`: Fixed null check |
+| `[COMMENT-2]` | @`bob` | `src/db.ts:15` | `Incorrect` | `Resolved ✅` | Pushback: Handled by outer transaction |
+| `[COMMENT-3]` | @`carol` | `src/util.ts:88` | `Won't fix` | `Resolved ✅` | Deferred: Out of scope |
+```
