@@ -1,6 +1,6 @@
 # PR Review Comments Triage & Resolution Standards
 
-Standardized reference for inspecting, evaluating, triaging, and resolving Pull Request review comments within the `auto-handle` workflow.
+Standardized reference for inspecting, evaluating, triaging, and resolving Pull Request review comments within the `auto-code` workflow.
 
 ---
 
@@ -155,7 +155,7 @@ The tool call `ask_question` **must** be accompanied by the full triage report i
 If `skills/review-memory/scripts/memory-store.mjs` exists:
 - **Accepted Comments**:
   ```bash
-  node skills/review-memory/scripts/memory-store.mjs record-decision --id COMMENT-<N> --status accepted --rationale "Accepted during /auto-handle"
+  node skills/review-memory/scripts/memory-store.mjs record-decision --id COMMENT-<N> --status accepted --rationale "Accepted during /auto-code"
   ```
 - **Dismissed Comments**:
   ```bash

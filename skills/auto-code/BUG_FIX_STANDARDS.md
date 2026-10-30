@@ -1,6 +1,6 @@
 # Bug Triage & Reproduction Standards
 
-Standardized reference for triaging, reproducing, and verifying bug fixes within the `auto-handle` workflow.
+Standardized reference for triaging, reproducing, and verifying bug fixes within the `auto-code` workflow.
 
 ---
 
@@ -54,7 +54,7 @@ If more than one clean way to fix the problem exists:
 If the planned diff fails to make the reproduction test pass or encounters an unexpected blocker during execution:
 - **Zero Silent Deviation**: Never quietly edit unrelated files without recording the reason.
 - **Minor Tactical Amendment** (e.g., missing null guard, type cast, or import):
-  - Append amendment to the frozen plan artifact (`auto_handle_plan.md`):
+  - Append amendment to the frozen plan artifact (`auto_code_plan.md`):
     ```markdown
     ### 📝 Amendment #1: <brief description>
     - **Reason**: <why adjustment was necessary to pass test>

@@ -1,13 +1,13 @@
 ---
-name: auto-handle
+name: auto-code
 description: >-
-  CRITICAL: ONLY activate this skill when the user explicitly triggers the `/auto-handle` slash command.
+  CRITICAL: ONLY activate this skill when the user explicitly triggers the `/auto-code` slash command.
   DO NOT auto-trigger or invoke this skill for general coding, reviewing, debugging, or casual tasks.
-  When invoked via `/auto-handle`, executes an end-to-end autonomous engineering loop uniting bug triage, PR review handling, autonomous plan execution, code review, and visual verification: classifies intent, triages comments or issues, formulates and clarifies plans via grill-me, executes minimally with ponytail, verifies, reviews locally, captures frontend screenshots when UI is affected, and remediates.
+  When invoked via `/auto-code`, executes an end-to-end autonomous engineering loop uniting bug triage, PR review handling, autonomous plan execution, code review, and visual verification: classifies intent, triages comments or issues, formulates and clarifies plans via grill-me, executes minimally with ponytail, verifies, reviews locally, captures frontend screenshots when UI is affected, and remediates.
 argument-hint: "[<issue-description|pr-number-or-url>]"
 ---
 
-# Auto-Handle Workflow
+# Auto-Code Workflow
 
 Unified orchestrator combining bug triage, PR review comment handling, autonomous plan execution, and code review into an autonomous closed-loop development lifecycle.
 
@@ -16,7 +16,7 @@ Unified orchestrator combining bug triage, PR review comment handling, autonomou
 ## 0. Invocation, Branch & Working Tree Safety Guard
 
 1. **Invocation Guard**:
-   - Only activate when explicitly invoked via `/auto-handle` (e.g. `/auto-handle`, `/auto-handle <query>`, `/auto-handle <pr-number-or-url>`).
+   - Only activate when explicitly invoked via `/auto-code` (e.g. `/auto-code`, `/auto-code <query>`, `/auto-code <pr-number-or-url>`).
    - Abort immediately if triggered casually.
 2. **Branch Check**:
    - Query `git rev-parse --abbrev-ref HEAD`.
@@ -25,7 +25,7 @@ Unified orchestrator combining bug triage, PR review comment handling, autonomou
    - Inspect workspace cleanliness via `git status -s`.
    - If clean, or uncommitted changes strictly match target files/tests for this task: proceed.
    - If unrelated uncommitted changes exist: prompt user via `ask_question`:
-     - `(Recommended) Stash uncommitted changes and proceed: git stash push -u -m "auto-handle-backup"`
+     - `(Recommended) Stash uncommitted changes and proceed: git stash push -u -m "auto-code-backup"`
      - `Include existing uncommitted changes in this task`
      - `Abort execution to resolve working tree manually`
 4. **Core Invariant: Test & Diagnostic File Preservation on Abort**:
@@ -102,8 +102,8 @@ Inspect the drafted plan and tradeoff analysis:
 3. If gaps or alternative designs exist, run `/grill-me` to clarify with the user and update the plan.
 
 ### B.2 Plan Freeze (MANDATORY)
-1. Snapshot the finalized plan into a dedicated execution artifact at `<Artifact Directory>/auto_handle_plan.md` using `write_file` with:
-   - `ArtifactMetadata`: `{ Summary: "Frozen implementation plan for auto-handle", UserFacing: true, RequestFeedback: false }`
+1. Snapshot the finalized plan into a dedicated execution artifact at `<Artifact Directory>/auto_code_plan.md` using `write_file` with:
+   - `ArtifactMetadata`: `{ Summary: "Frozen implementation plan for auto-code", UserFacing: true, RequestFeedback: false }`
    - YAML frontmatter:
      ```yaml
      ---
@@ -113,9 +113,9 @@ Inspect the drafted plan and tradeoff analysis:
      baseline_sha: <short-sha>
      ---
      ```
-   - Lock banner: `> [!IMPORTANT]\n> ### 🔒 PLAN FROZEN & IMMUTABLE\n> Auto-handle execution active.`
+   - Lock banner: `> [!IMPORTANT]\n> ### 🔒 PLAN FROZEN & IMMUTABLE\n> Auto-code execution active.`
    - Preserve any original source plan artifact intact.
-2. Present a clickable link to `auto_handle_plan.md` in chat.
+2. Present a clickable link to `auto_code_plan.md` in chat.
 
 ### B.3 Pre-Flight Baseline Verification
 1. Run the targeted baseline test or build command to ensure the current workspace is green before modifications.
@@ -123,7 +123,7 @@ Inspect the drafted plan and tradeoff analysis:
 
 ### B.4 Autonomous Execution (Applying `ponytail`)
 Execute the frozen plan sequentially without conversational pauses:
-- Set `status: IN_PROGRESS` in `auto_handle_plan.md`.
+- Set `status: IN_PROGRESS` in `auto_code_plan.md`.
 - **Ponytail Ladder**: Codebase reuse > Stdlib > Native platform features > Shortest working diff.
 - Zero unnecessary abstractions or boilerplate.
 - Apply surgical edits via `edit_file`.
@@ -133,7 +133,7 @@ Execute the frozen plan sequentially without conversational pauses:
 If a planned step fails verification or encounters an unexpected technical blocker during execution:
 - **Zero Silent Deviation**: Never quietly edit unrelated files or expand scope without logging.
 - **Case A: Minor Tactical Amendment** (same strategy, e.g. missing import, null guard, or type adjustment):
-  1. Append an amendment entry to `<Artifact Directory>/auto_handle_plan.md`:
+  1. Append an amendment entry to `<Artifact Directory>/auto_code_plan.md`:
      ```markdown
      ### 📝 Amendment #1: <brief description>
      - **Reason**: <why adjustment was necessary to satisfy verification>
@@ -147,7 +147,7 @@ If a planned step fails verification or encounters an unexpected technical block
   3. Prompt user via `ask_question` with options:
      - `(Recommended) Pivot to Alternative Strategy: <brief description>`
      - `Abort execution (preserve reproduction tests and state)`
-  4. If user approves pivot, update `auto_handle_plan.md` with the amended strategy and resume execution. If user aborts, preserve all test files and state intact, report their file paths in chat, and halt cleanly.
+  4. If user approves pivot, update `auto_code_plan.md` with the amended strategy and resume execution. If user aborts, preserve all test files and state intact, report their file paths in chat, and halt cleanly.
 
 ---
 
@@ -177,21 +177,21 @@ Determine review tier:
 
 ### D.1 Remediation Loop Guard
 To prevent infinite review cycles:
-- **Maximum 1 automatic remediation cycle** tracked via `remediation_cycle` in `auto_handle_plan.md`.
+- **Maximum 1 automatic remediation cycle** tracked via `remediation_cycle` in `auto_code_plan.md`.
 - Only **CRITICAL** or **HIGH** severity blockers trigger automatic re-planning.
 - Dismissed items or minor nits are noted in chat as advisory.
 
 ### D.2 Remediation Action
-Read `auto_handle_plan.md` frontmatter:
+Read `auto_code_plan.md` frontmatter:
 - **If blockers detected and `remediation_cycle == 0`**:
-  1. Increment `remediation_cycle: 1` and set `status: REMEDIATING` in `auto_handle_plan.md`.
+  1. Increment `remediation_cycle: 1` and set `status: REMEDIATING` in `auto_code_plan.md`.
   2. Formulate a remediation plan addressing only the blockers.
   3. Return to **Phase B: Has Plan**.
 - **If blockers persist and `remediation_cycle >= 1`**:
-  - Halt, update `status: ABORTED` in `auto_handle_plan.md`, present findings, and ask user for direction via `ask_question`.
+  - Halt, update `status: ABORTED` in `auto_code_plan.md`, present findings, and ask user for direction via `ask_question`.
 
 ### D.3 Plan vs. Reality Compliance Audit
-Before finalization, compare the actual modified codebase state (`git diff`) against the frozen plan artifact (`auto_handle_plan.md`) and any logged amendments to guarantee zero silent scope creep:
+Before finalization, compare the actual modified codebase state (`git diff`) against the frozen plan artifact (`auto_code_plan.md`) and any logged amendments to guarantee zero silent scope creep:
 1. **Target Scope Check**: Did all modified files and functions strictly match the planned targets without unrequested file modifications?
 2. **Diff Minimization Check**: Does the diff contain only necessary code to satisfy the plan, with zero extraneous refactoring or boilerplate?
 3. **Amendment Justification Check**: Were all deviations or tactical amendments logged and justified in the plan artifact?
@@ -216,7 +216,7 @@ For any feature, update, or bug fix that alters the visual appearance, styling, 
 
 ### D.5 Clean Completion & Finalization
 When verification is green, the Plan Compliance Audit is confirmed, visual verification is complete (for UI changes), and no blocking review findings remain:
-1. Update `status: COMPLETED` in `auto_handle_plan.md`.
+1. Update `status: COMPLETED` in `auto_code_plan.md`.
 2. Present the Consolidated Status Report, Plan Compliance Checklist, and any visual verification previews in chat.
 3. If code changes were made, commit and push changes safely adhering to [`git-commit-push`](../git-commit-push/SKILL.md), capturing `<short-sha>`.
 4. If working on PR review comments, reply to and resolve threads on GitHub per [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) referencing `<short-sha>`, and render the PR Resolution Summary Table.
