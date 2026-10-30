@@ -86,13 +86,15 @@ Inspect the drafted plan and tradeoff analysis:
 3. If gaps or alternative designs exist, run `/grill-me` to clarify with the user and update the plan.
 
 ### B.2 Plan Freeze (MANDATORY)
-1. Write/snapshot the finalized plan into `<Artifact Directory>/auto_handle_plan.md` with:
+1. Snapshot the finalized plan into a dedicated execution artifact at `<Artifact Directory>/auto_handle_plan.md` using `write_file` with:
    - `ArtifactMetadata`: `{ Summary: "Frozen implementation plan for auto-handle", UserFacing: true, RequestFeedback: false }`
    - Lock banner: `> [!IMPORTANT]\n> ### 🔒 PLAN FROZEN & IMMUTABLE\n> Auto-handle execution active.`
+   - Preserve any original source plan artifact intact.
 2. Present a clickable link to `auto_handle_plan.md` in chat.
 
-### B.3 Pre-Flight Baseline
-Run the targeted baseline test or build command to ensure the current workspace is green before modifications.
+### B.3 Pre-Flight Baseline Verification
+1. Run the targeted baseline test or build command to ensure the current workspace is green before modifications.
+2. **Pre-Existing Failure Guard**: If the pre-flight baseline fails unexpectedly on unrelated code, alert the user before modifying any files to avoid diagnosing pre-existing breakage as new regressions.
 
 ### B.4 Autonomous Execution (Applying `ponytail`)
 Execute the frozen plan sequentially without conversational pauses:
@@ -171,9 +173,10 @@ Before finalization, compare the actual modified codebase state (`git diff`) aga
    - Diff scope matched artifact plan + logged amendments without extra modifications? (Yes / No)
    - Any amendments logged and justified? (Yes / None needed / Unlogged divergence)
    - Targeted verification tests verified? (Yes / No)
+5. **Certification**: Explicitly certify whether the implementation complied 100% with the frozen plan (or approved amendments), or detail any unlogged deviations.
 
 ### D.4 Clean Completion & Finalization
 When verification is green, the Plan Compliance Audit is confirmed, and no blocking review findings remain:
 1. Present the Consolidated Status Report & Plan Compliance Checklist in chat.
 2. If working on PR review comments, reply to and resolve threads on GitHub per [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) (`ADDRESSED`, `INVALID`, or `WONT_FIX`) and render the PR Resolution Summary Table.
-3. Commit and push changes safely adhering to [`git-commit-push`](../git-commit-push/SKILL.md).
+3. Commit and push changes safely adhering to [`git-commit-push`](../git-commit-push/SKILL.md), synthesizing the commit scope and body directly from the frozen plan artifact (`auto_handle_plan.md`).
