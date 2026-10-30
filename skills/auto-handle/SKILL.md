@@ -3,7 +3,7 @@ name: auto-handle
 description: >-
   CRITICAL: ONLY activate this skill when the user explicitly triggers the `/auto-handle` slash command.
   DO NOT auto-trigger or invoke this skill for general coding, reviewing, debugging, or casual tasks.
-  When invoked via `/auto-handle`, executes an end-to-end autonomous engineering loop uniting bug triage, PR review handling, autonomous plan execution, and code review: classifies intent, triages comments or issues, formulates and clarifies plans via grill-me, executes minimally with ponytail, verifies, reviews locally, and remediates.
+  When invoked via `/auto-handle`, executes an end-to-end autonomous engineering loop uniting bug triage, PR review handling, autonomous plan execution, code review, and visual verification: classifies intent, triages comments or issues, formulates and clarifies plans via grill-me, executes minimally with ponytail, verifies, reviews locally, captures frontend screenshots when UI is affected, and remediates.
 argument-hint: "[<issue-description|pr-number-or-url>]"
 ---
 
@@ -175,8 +175,23 @@ Before finalization, compare the actual modified codebase state (`git diff`) aga
    - Targeted verification tests verified? (Yes / No)
 5. **Certification**: Explicitly certify whether the implementation complied 100% with the frozen plan (or approved amendments), or detail any unlogged deviations.
 
-### D.4 Clean Completion & Finalization
-When verification is green, the Plan Compliance Audit is confirmed, and no blocking review findings remain:
-1. Present the Consolidated Status Report & Plan Compliance Checklist in chat.
+### D.4 Visual Verification Guard (Mandatory for Frontend Appearance Changes)
+For any feature, update, or bug fix that alters the visual appearance, styling, or layout of a frontend interface (HTML, CSS, UI components, pages):
+1. **Mandatory Screenshot Execution**:
+   - The agent **MUST** invoke [`auto-frontend-screenshot`](../auto-frontend-screenshot/SKILL.md) to visually verify the affected component or page.
+   - Execute via the accelerated runner (Mode A):
+     ```bash
+     node skills/auto-frontend-screenshot/scripts/capture.mjs \
+       --url "<frontend-route-url>" \
+       --selector "<css-selector>" \
+       --viewport <desktop|mobile> \
+       --theme <light|dark>
+     ```
+2. **Visual Proof Presentation**:
+   - Embed or link the captured screenshot in the closing report to confirm that layout, alignment, and visual styling render as expected before final completion.
+
+### D.5 Clean Completion & Finalization
+When verification is green, the Plan Compliance Audit is confirmed, visual verification is complete (for UI changes), and no blocking review findings remain:
+1. Present the Consolidated Status Report, Plan Compliance Checklist, and any visual verification previews in chat.
 2. If working on PR review comments, reply to and resolve threads on GitHub per [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) (`ADDRESSED`, `INVALID`, or `WONT_FIX`) and render the PR Resolution Summary Table.
 3. Commit and push changes safely adhering to [`git-commit-push`](../git-commit-push/SKILL.md), synthesizing the commit scope and body directly from the frozen plan artifact (`auto_handle_plan.md`).
