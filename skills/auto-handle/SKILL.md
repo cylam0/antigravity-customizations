@@ -21,6 +21,11 @@ Unified orchestrator combining bug triage, PR review comment handling, autonomou
 2. **Branch Check**:
    - Query `git rev-parse --abbrev-ref HEAD`.
    - If on `main`, `master`, `production`, `release/*`, or detached HEAD, confirm with user before touching code or staging commits.
+3. **Core Invariant: Test & Diagnostic File Preservation on Abort**:
+   - Whenever execution is aborted or cancelled at any stage (during triage, grill-me alignment, plan invalidation, or review):
+     - **NEVER delete, revert, or clean up reproduction test files, regression tests, or diagnostic scripts.**
+     - Keep all newly authored test files intact on disk for developer reference and future reproduction.
+     - Report the file path of any preserved test file(s) in chat before halting.
 
 ---
 
@@ -54,18 +59,22 @@ Follow the standards defined in [`BUG_FIX_STANDARDS.md`](./BUG_FIX_STANDARDS.md)
 1. Trace execution paths, inspect all callers, and isolate root cause.
 2. Write a minimal reproduction test and verify it **fails** (Red Phase) before touching production code (necessary tests only).
 
-### A.4 Draft Implementation Plan
-Formulate a concise, structured plan detailing:
-- Target files and functions.
-- Planned minimal diff (following `ponytail` principles).
-- Targeted verification command.
+### A.4 Multi-Approach Tradeoff Analysis & Draft Plan
+1. **Tradeoff Analysis (When Viable Alternatives Exist)**:
+   - If more than one clean implementation or fix strategy exists:
+     - Compare options across **Blast Radius** (caller impact), **Complexity** (abstractions vs stdlib), **Line Impact** (net lines), and **Maintainability**.
+     - Provide an explicit recommendation based on the Ponytail Ladder (codebase reuse > stdlib > shortest working diff).
+2. **Draft Structured Plan**:
+   - Target files, functions, and line ranges.
+   - Planned minimal diff (exact replacement snippet).
+   - Targeted verification command (running necessary tests only).
 
-### A.5 Ambiguity & Simplicity Gate (Grill-Me)
-Inspect the drafted plan:
-- Does it contain ambiguities, hidden assumptions, or unclarified user expectations?
-- Is it unnecessarily complex or speculative?
-- **If ambiguous or complex**: Run the `/grill-me` clarification interview (using `ask_question` or concise conversational queries) to resolve design decisions, then update the plan.
-- **If clear and simple**: Proceed to Phase B.
+### A.5 Ambiguity, Tradeoff & Simplicity Gate (Grill-Me)
+Inspect the drafted plan and tradeoff analysis:
+- Are there competing architectural options, ambiguities, hidden assumptions, or unclarified requirements?
+- Is the proposed solution unnecessarily complex or speculative?
+- **If competing tradeoffs exist or plan is ambiguous**: Run the `/grill-me` clarification interview (using `ask_question` with `(Recommended)` for the user to select the preferred approach or resolve decisions), then update the plan.
+- **If straightforward, unambiguous, and simple**: Proceed directly to Phase B.
 
 ---
 
@@ -73,8 +82,8 @@ Inspect the drafted plan:
 
 ### B.1 Plan Verification & Gap Fill
 1. Inspect the existing plan artifact.
-2. Check for missing context, stale assumptions, or unaddressed edge cases.
-3. If gaps exist, run `/grill-me` to clarify and update the plan.
+2. Check for missing context, stale assumptions, unaddressed edge cases, or unresolved architectural tradeoffs.
+3. If gaps or alternative designs exist, run `/grill-me` to clarify with the user and update the plan.
 
 ### B.2 Plan Freeze (MANDATORY)
 1. Write/snapshot the finalized plan into `<Artifact Directory>/auto_handle_plan.md` with:
@@ -92,6 +101,26 @@ Execute the frozen plan sequentially without conversational pauses:
 - Apply surgical edits via `edit_file`.
 - Re-run targeted verification tests after each change.
 
+### B.5 Controlled Plan Invalidation & Revision Protocol
+If a planned step fails verification or encounters an unexpected technical blocker during execution:
+- **Zero Silent Deviation**: Never quietly edit unrelated files or expand scope without logging.
+- **Case A: Minor Tactical Amendment** (same strategy, e.g. missing import, null guard, or type adjustment):
+  1. Append an amendment entry to `<Artifact Directory>/auto_handle_plan.md`:
+     ```markdown
+     ### 📝 Amendment #1: <brief description>
+     - **Reason**: <why adjustment was necessary to satisfy verification>
+     - **Adjusted Diff**: <new minimal replacement snippet>
+     ```
+  2. Note in chat: `> ℹ️ Plan Amendment #1: [brief reason]`
+  3. Apply amendment and re-verify targeted tests.
+- **Case B: Major Strategic Invalidation** (approach is fundamentally unviable or invalidates architecture):
+  1. **Halt immediately.** Do not touch further files. Preserve all test files and current workspace state intact.
+  2. Explain the fundamental roadblock clearly in chat.
+  3. Prompt user via `ask_question` with options:
+     - `(Recommended) Pivot to Alternative Strategy: <brief description>`
+     - `Abort execution (preserve reproduction tests and state)`
+  4. If user approves pivot, update `auto_handle_plan.md` with the amended strategy and resume execution. If user aborts, preserve all test files and state intact, report their file paths in chat, and halt cleanly.
+
 ---
 
 ## Phase C: Post-Execution Verification & Code Review
@@ -101,8 +130,14 @@ Confirm all targeted test cases pass cleanly (running **necessary tests only**).
 
 ### C.2 Review Routing (Fast-Path vs Heavy-Path)
 Determine review tier:
-- **Fast-Path** (Single file, < 30 lines changed, routine fix):
-  - In-line Ponytail Simplicity Audit (verify zero over-engineering, stdlib reuse).
+- **Fast-Path** (Single file, < 30 lines changed, focused fix/task):
+  1. **Dynamic Caller & Regression Verification**:
+     - Inspect `git diff` and trace direct callers of the modified function or component.
+     - Execute targeted unit tests for affected callers or execute a focused boundary test case (running **necessary tests only**).
+     - Confirm zero regressions in surrounding callers and immediate modules.
+  2. **Ponytail Simplicity Audit**:
+     - Verify zero unnecessary abstractions, speculative wrappers, or dead parameters.
+     - Confirm adherence to standard library or existing helper reuse.
 - **Heavy-Path** (Multi-file changes, architectural/API contracts, security-sensitive):
   - Run [`code-review`](../code-review/SKILL.md) orchestrator spawning specialist subagents (`reviewer-logic`, `reviewer-security`, `reviewer-simplification`).
 - **Unsure**:
@@ -126,8 +161,19 @@ To prevent infinite review cycles:
 - **If blockers persist after Loop 1**:
   - Halt, present findings, and ask user for direction via `ask_question`.
 
-### D.3 Clean Completion & Finalization
-When verification is green and no blocking review findings remain:
-1. Provide a concise execution summary.
+### D.3 Plan vs. Reality Compliance Audit
+Before finalization, compare the actual modified codebase state (`git diff`) against the frozen plan artifact (`auto_handle_plan.md`) and any logged amendments to guarantee zero silent scope creep:
+1. **Target Scope Check**: Did all modified files and functions strictly match the planned targets without unrequested file modifications?
+2. **Diff Minimization Check**: Does the diff contain only necessary code to satisfy the plan, with zero extraneous refactoring or boilerplate?
+3. **Amendment Justification Check**: Were all deviations or tactical amendments logged and justified in the plan artifact?
+4. **Plan Compliance Checklist**: Include a structured checklist in the final report:
+   - Target files matched artifact plan? (Yes / No)
+   - Diff scope matched artifact plan + logged amendments without extra modifications? (Yes / No)
+   - Any amendments logged and justified? (Yes / None needed / Unlogged divergence)
+   - Targeted verification tests verified? (Yes / No)
+
+### D.4 Clean Completion & Finalization
+When verification is green, the Plan Compliance Audit is confirmed, and no blocking review findings remain:
+1. Present the Consolidated Status Report & Plan Compliance Checklist in chat.
 2. If working on PR review comments, reply to and resolve threads on GitHub per [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) (`ADDRESSED`, `INVALID`, or `WONT_FIX`).
 3. Commit and push changes safely adhering to [`git-commit-push`](../git-commit-push/SKILL.md).

@@ -63,12 +63,15 @@ If the planned diff fails to make the reproduction test pass or encounters an un
   - Note in chat and re-verify reproduction test.
 - **Major Strategic Invalidation** (approach is fundamentally unviable):
   - Halt immediately without further edits.
+  - Preserve all reproduction test files intact on disk for developer reference.
   - Explain roadblock and use `ask_question` to pivot or cancel.
 
 ---
 
-## 6. Stage 5: Post-Fix Verification (Red to Green)
+## 6. Stage 5: Post-Fix Verification (Red to Green) & Dynamic Regression
 
-1. Re-run the isolated reproduction test.
-2. Verify transition from **RED** (failing) to **GREEN** (passing).
-3. Verify that no unintended regressions were introduced in the immediate module.
+1. **Reproduction Proof**: Re-run the isolated reproduction test and verify transition from **RED** to **GREEN**.
+2. **Dynamic Caller & Regression Check**:
+   - Trace all callers of the modified function.
+   - Run targeted tests for directly affected caller modules or write a focused boundary test case covering edge values (null, empty, limits).
+   - Ensure necessary tests pass cleanly with zero side effects.
