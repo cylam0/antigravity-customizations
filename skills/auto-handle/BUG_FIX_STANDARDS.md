@@ -30,9 +30,9 @@ Across all testing and verification stages:
 
 ## 3. Stage 2: Build Reproduction Test (Red Phase)
 
-1. **Write Isolated Reproduction Test**:
-   - Construct a minimal, isolated test triggering the bug and asserting correct behavior.
-   - Place in appropriate test directory or scratch test runner.
+1. **Test Placement & Classification**:
+   - **Permanent Regression Test (Default)**: Place inside project test directory (e.g. `tests/`). Retained and committed with the fix.
+   - **Ephemeral Diagnostic Probe (Scratch)**: Write to `<Artifact Directory>/scratch/` to avoid git workspace pollution. Never create loose scratch scripts at repository root.
 2. **Execute & Confirm Failure**:
    - Run targeted test via `run_command` (necessary tests only).
    - **Confirm the test FAILS** with the expected error before modifying any production code.

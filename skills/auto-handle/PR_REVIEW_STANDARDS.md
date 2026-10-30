@@ -12,8 +12,11 @@ Standardized reference for inspecting, evaluating, triaging, and resolving Pull 
    git rev-parse --show-toplevel
    git branch --show-current
    ```
-2. If a PR number or URL is supplied in the initiating prompt, parse and use that PR.
-3. Otherwise, query the active PR associated with the current branch via GitHub CLI:
+2. **GitHub CLI Pre-Flight Auth Check**:
+   - Run `gh auth status`.
+   - If unauthenticated or failing: prompt user to authenticate or paste PR review comments directly. Output final replies and resolution notes as Markdown snippets in chat instead of GraphQL mutations.
+3. If a PR number or URL is supplied in the initiating prompt, parse and use that PR.
+4. Otherwise, query the active PR associated with the current branch via GitHub CLI:
    ```bash
    gh pr view --json number,title,url,headRefName,baseRefName,state
    ```
@@ -28,7 +31,7 @@ gh api graphql -F owner=":owner" -F repo=":repo" -F pr=<number> -f query='
   query($owner: String!, $repo: String!, $pr: Int!) {
     repository(owner: $owner, name: $repo) {
       pullRequest(number: $pr) {
-        reviewThreads(first: 100) {
+        reviewThreads(first: 50) {
           nodes {
             id
             isResolved
@@ -36,7 +39,7 @@ gh api graphql -F owner=":owner" -F repo=":repo" -F pr=<number> -f query='
             path
             line
             originalLine
-            comments(first: 50) {
+            comments(last: 5) {
               nodes {
                 id
                 author { login }
@@ -63,10 +66,16 @@ Store each thread's GraphQL `id` as `threadId` (e.g. `PRRT_kwDO...`). This ID is
 
 ## 2. Mandatory Code Inspection & Evaluation Standards
 
+### 2.1 Context Protection & Batching Protocol
+1. **Thread Truncation**: Retain only the first (initiating) comment and last (latest reply) per thread. Truncate comment bodies over 500 characters.
+2. **Group by File**: Collate review threads by file path (`path`) and call `read_file` once per distinct file.
+3. **Capped Active Batch**: Process at most 15 unresolved threads per turn (prioritize `isOutdated: false` threads and core source files).
+
+### 2.2 Evaluation Rubric & Inspection
 Before classifying any review comment:
 
 1. **Mandatory Source Code Inspection**:
-   - For every unresolved comment thread, call `read_file` on the target file and line range.
+   - For each target file and line range, call `read_file` on source code.
    - **Never** evaluate comments or determine root causes from the reviewer's comment text alone without reading the actual source code.
 2. **Already-Fixed Guard**:
    - Inspect whether the issue has already been fixed in subsequent commits on the current branch (common with `isOutdated: true` threads).
@@ -81,11 +90,12 @@ Before classifying any review comment:
    - **LOW**: Minor cleanup, documentation typo, non-breaking simplification.
    - **DISPUTABLE / INVALID**: Reviewer made a false assumption, misunderstood architectural intent, or requested out-of-scope changes.
 5. **Review Memory Check**:
-   - Query persistent review memory to check for known branch dismissals:
+   - If `skills/review-memory/scripts/memory-store.mjs` exists:
      ```bash
      node skills/review-memory/scripts/memory-store.mjs query
      ```
-   - If a comment matches a previously dismissed rationale on this branch, flag it as dismissed per review memory.
+     If a comment matches a previously dismissed rationale on this branch, flag it as dismissed per review memory.
+   - If `memory-store.mjs` is missing, skip review memory check cleanly.
 
 ---
 
@@ -142,6 +152,7 @@ Prompt the user using `ask_question` with `is_multi_select: true`:
 The tool call `ask_question` **must** be accompanied by the full triage report in the same turn. Never ask without presenting the analysis.
 
 ### Record Decisions in Review Memory
+If `skills/review-memory/scripts/memory-store.mjs` exists:
 - **Accepted Comments**:
   ```bash
   node skills/review-memory/scripts/memory-store.mjs record-decision --id COMMENT-<N> --status accepted --rationale "Accepted during /auto-handle"
@@ -150,6 +161,7 @@ The tool call `ask_question` **must** be accompanied by the full triage report i
   ```bash
   node skills/review-memory/scripts/memory-store.mjs record-decision --id COMMENT-<N> --status dismissed --rationale "<reason>"
   ```
+Otherwise, skip memory recording cleanly.
 
 ---
 

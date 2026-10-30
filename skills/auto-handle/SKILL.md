@@ -13,7 +13,7 @@ Unified orchestrator combining bug triage, PR review comment handling, autonomou
 
 ---
 
-## 0. Invocation & Branch Safety Guard
+## 0. Invocation, Branch & Working Tree Safety Guard
 
 1. **Invocation Guard**:
    - Only activate when explicitly invoked via `/auto-handle` (e.g. `/auto-handle`, `/auto-handle <query>`, `/auto-handle <pr-number-or-url>`).
@@ -21,11 +21,19 @@ Unified orchestrator combining bug triage, PR review comment handling, autonomou
 2. **Branch Check**:
    - Query `git rev-parse --abbrev-ref HEAD`.
    - If on `main`, `master`, `production`, `release/*`, or detached HEAD, confirm with user before touching code or staging commits.
-3. **Core Invariant: Test & Diagnostic File Preservation on Abort**:
+3. **Working Tree Dirty State Guard**:
+   - Inspect workspace cleanliness via `git status -s`.
+   - If clean, or uncommitted changes strictly match target files/tests for this task: proceed.
+   - If unrelated uncommitted changes exist: prompt user via `ask_question`:
+     - `(Recommended) Stash uncommitted changes and proceed: git stash push -u -m "auto-handle-backup"`
+     - `Include existing uncommitted changes in this task`
+     - `Abort execution to resolve working tree manually`
+4. **Core Invariant: Test & Diagnostic File Preservation on Abort**:
    - Whenever execution is aborted or cancelled at any stage (during triage, grill-me alignment, plan invalidation, or review):
      - **NEVER delete, revert, or clean up reproduction test files, regression tests, or diagnostic scripts.**
-     - Keep all newly authored test files intact on disk for developer reference and future reproduction.
-     - Report the file path of any preserved test file(s) in chat before halting.
+     - **Ephemeral Diagnostics**: Written to `<Artifact Directory>/scratch/` (zero git workspace pollution).
+     - **Permanent Regression Tests**: Written inside project test directory (e.g. `tests/`).
+     - On abort, all test files remain intact on disk. Report their exact paths in chat before halting.
 
 ---
 
@@ -59,7 +67,15 @@ Follow the standards defined in [`BUG_FIX_STANDARDS.md`](./BUG_FIX_STANDARDS.md)
 1. Trace execution paths, inspect all callers, and isolate root cause.
 2. Write a minimal reproduction test and verify it **fails** (Red Phase) before touching production code (necessary tests only).
 
-### A.4 Multi-Approach Tradeoff Analysis & Draft Plan
+### A.4 Feature & Task Specification (When Intent = Feature / Task)
+1. **Acceptance Criteria & Non-Goals**:
+   - Extract clear, verifiable acceptance criteria and declare out-of-scope non-goals.
+2. **Contract-First Definition**:
+   - Define minimal signatures, interfaces, or schema changes before implementation (Ponytail: zero unrequested abstractions).
+3. **Caller & Compatibility Scan**:
+   - Trace existing callers to ensure non-breaking additions or minimal planned caller updates.
+
+### A.5 Multi-Approach Tradeoff Analysis & Draft Plan
 1. **Tradeoff Analysis (When Viable Alternatives Exist)**:
    - If more than one clean implementation or fix strategy exists:
      - Compare options across **Blast Radius** (caller impact), **Complexity** (abstractions vs stdlib), **Line Impact** (net lines), and **Maintainability**.
@@ -69,7 +85,7 @@ Follow the standards defined in [`BUG_FIX_STANDARDS.md`](./BUG_FIX_STANDARDS.md)
    - Planned minimal diff (exact replacement snippet).
    - Targeted verification command (running necessary tests only).
 
-### A.5 Ambiguity, Tradeoff & Simplicity Gate (Grill-Me)
+### A.6 Ambiguity, Tradeoff & Simplicity Gate (Grill-Me)
 Inspect the drafted plan and tradeoff analysis:
 - Are there competing architectural options, ambiguities, hidden assumptions, or unclarified requirements?
 - Is the proposed solution unnecessarily complex or speculative?
@@ -88,6 +104,15 @@ Inspect the drafted plan and tradeoff analysis:
 ### B.2 Plan Freeze (MANDATORY)
 1. Snapshot the finalized plan into a dedicated execution artifact at `<Artifact Directory>/auto_handle_plan.md` using `write_file` with:
    - `ArtifactMetadata`: `{ Summary: "Frozen implementation plan for auto-handle", UserFacing: true, RequestFeedback: false }`
+   - YAML frontmatter:
+     ```yaml
+     ---
+     status: FROZEN
+     remediation_cycle: 0
+     branch: <current-branch>
+     baseline_sha: <short-sha>
+     ---
+     ```
    - Lock banner: `> [!IMPORTANT]\n> ### 🔒 PLAN FROZEN & IMMUTABLE\n> Auto-handle execution active.`
    - Preserve any original source plan artifact intact.
 2. Present a clickable link to `auto_handle_plan.md` in chat.
@@ -98,6 +123,7 @@ Inspect the drafted plan and tradeoff analysis:
 
 ### B.4 Autonomous Execution (Applying `ponytail`)
 Execute the frozen plan sequentially without conversational pauses:
+- Set `status: IN_PROGRESS` in `auto_handle_plan.md`.
 - **Ponytail Ladder**: Codebase reuse > Stdlib > Native platform features > Shortest working diff.
 - Zero unnecessary abstractions or boilerplate.
 - Apply surgical edits via `edit_file`.
@@ -151,17 +177,18 @@ Determine review tier:
 
 ### D.1 Remediation Loop Guard
 To prevent infinite review cycles:
-- **Maximum 1 automatic remediation cycle** by default.
+- **Maximum 1 automatic remediation cycle** tracked via `remediation_cycle` in `auto_handle_plan.md`.
 - Only **CRITICAL** or **HIGH** severity blockers trigger automatic re-planning.
 - Dismissed items or minor nits are noted in chat as advisory.
 
 ### D.2 Remediation Action
-- **If blockers are detected (Loop 0)**:
-  1. Formulate a remediation plan addressing only the blockers.
-  2. Increment loop counter.
+Read `auto_handle_plan.md` frontmatter:
+- **If blockers detected and `remediation_cycle == 0`**:
+  1. Increment `remediation_cycle: 1` and set `status: REMEDIATING` in `auto_handle_plan.md`.
+  2. Formulate a remediation plan addressing only the blockers.
   3. Return to **Phase B: Has Plan**.
-- **If blockers persist after Loop 1**:
-  - Halt, present findings, and ask user for direction via `ask_question`.
+- **If blockers persist and `remediation_cycle >= 1`**:
+  - Halt, update `status: ABORTED` in `auto_handle_plan.md`, present findings, and ask user for direction via `ask_question`.
 
 ### D.3 Plan vs. Reality Compliance Audit
 Before finalization, compare the actual modified codebase state (`git diff`) against the frozen plan artifact (`auto_handle_plan.md`) and any logged amendments to guarantee zero silent scope creep:
@@ -177,21 +204,19 @@ Before finalization, compare the actual modified codebase state (`git diff`) aga
 
 ### D.4 Visual Verification Guard (Mandatory for Frontend Appearance Changes)
 For any feature, update, or bug fix that alters the visual appearance, styling, or layout of a frontend interface (HTML, CSS, UI components, pages):
-1. **Mandatory Screenshot Execution**:
-   - The agent **MUST** invoke [`auto-frontend-screenshot`](../auto-frontend-screenshot/SKILL.md) to visually verify the affected component or page.
-   - Execute via the accelerated runner (Mode A):
+1. **Pre-Flight Probe**:
+   - Check if `skills/auto-frontend-screenshot/scripts/capture.mjs` exists.
+   - Probe server reachability:
      ```bash
-     node skills/auto-frontend-screenshot/scripts/capture.mjs \
-       --url "<frontend-route-url>" \
-       --selector "<css-selector>" \
-       --viewport <desktop|mobile> \
-       --theme <light|dark>
+     node -e "fetch('<frontend-route-url>').then(r=>console.log(r.status)).catch(()=>console.log('OFFLINE'))"
      ```
-2. **Visual Proof Presentation**:
-   - Embed or link the captured screenshot in the closing report to confirm that layout, alignment, and visual styling render as expected before final completion.
+   - If server is offline or script is missing: prompt user via `ask_question` to supply a running port or skip visual verification.
+2. **Capture Execution & Proof**:
+   - If server is reachable, execute `capture.mjs` (Mode A) and embed screenshot preview in closing report.
 
 ### D.5 Clean Completion & Finalization
 When verification is green, the Plan Compliance Audit is confirmed, visual verification is complete (for UI changes), and no blocking review findings remain:
-1. Present the Consolidated Status Report, Plan Compliance Checklist, and any visual verification previews in chat.
-2. If working on PR review comments, reply to and resolve threads on GitHub per [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) (`ADDRESSED`, `INVALID`, or `WONT_FIX`) and render the PR Resolution Summary Table.
-3. Commit and push changes safely adhering to [`git-commit-push`](../git-commit-push/SKILL.md), synthesizing the commit scope and body directly from the frozen plan artifact (`auto_handle_plan.md`).
+1. Update `status: COMPLETED` in `auto_handle_plan.md`.
+2. Present the Consolidated Status Report, Plan Compliance Checklist, and any visual verification previews in chat.
+3. If code changes were made, commit and push changes safely adhering to [`git-commit-push`](../git-commit-push/SKILL.md), capturing `<short-sha>`.
+4. If working on PR review comments, reply to and resolve threads on GitHub per [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) referencing `<short-sha>`, and render the PR Resolution Summary Table.
