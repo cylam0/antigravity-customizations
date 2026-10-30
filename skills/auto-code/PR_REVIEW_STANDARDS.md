@@ -173,7 +173,7 @@ Otherwise, skip memory recording cleanly.
 
 ---
 
-## 5. Automated GitHub Reply & Thread Resolution
+## 5. GitHub Reply & Thread Resolution Workflow
 
 After code changes are executed and verified (or if user selects "None / Cancel"):
 
@@ -183,10 +183,18 @@ GitHub GraphQL enum `PullRequestReviewThreadResolutionReason`:
 - **`INVALID`** (*"Incorrect"* in GitHub UI): Comment was evaluated as a false positive, invalid assumption, or intentional behavior.
 - **`WONT_FIX`**: Comment was valid but not selected for fixing (deferred / out of scope).
 
-### Execution Protocol & Resilience
-- **No Direct Tagging**: Do **NOT** include `@<reviewer>` mentions in reply bodies. GitHub notifies thread participants automatically without extra pings.
-- **Best-Effort Processing**: Iterate through every triaged comment thread. If an individual GraphQL call fails (e.g., permissions or network glitch), log the error and continue processing remaining threads.
-- **Fallback Snippets**: For any failed API calls, provide ready-to-copy reply snippets in the final report for manual entry.
+### Execution Protocol: Automated vs Confirmed Resolution
+1. **`ADDRESSED` (Automatic Safe-Path)**:
+   - Threads where accepted code fixes were committed (referencing `<short-sha>`) can be automatically replied to and resolved via GraphQL mutations without extra prompts.
+2. **`INVALID` & `WONT_FIX` (Interactive Confirmation Gate)**:
+   - To prevent social friction and preserve healthy team dynamics, **NEVER** auto-resolve threads as `INVALID` ("Incorrect") or `WONT_FIX` without user confirmation.
+   - Present the draft reply in chat and prompt the user via `ask_question`:
+     - `(Recommended) Approve reply and resolve thread on GitHub`
+     - `Edit reply manually (do not submit or resolve on GitHub)`
+     - `Leave thread open for human follow-up`
+3. **No Direct Tagging**: Do **NOT** include `@<reviewer>` mentions in reply bodies. GitHub notifies thread participants automatically without extra pings.
+4. **Best-Effort Processing**: Iterate through triaged threads. If an individual GraphQL call fails (e.g., permissions or network glitch), log the error and continue processing remaining threads.
+5. **Fallback Snippets**: For any failed or skipped API calls, provide ready-to-copy reply snippets in the final report for manual entry.
 
 ### GraphQL Mutations
 

@@ -3,8 +3,8 @@ name: auto-code
 description: >-
   CRITICAL: ONLY activate this skill when the user explicitly triggers the `/auto-code` slash command.
   DO NOT auto-trigger or invoke this skill for general coding, reviewing, debugging, or casual tasks.
-  When invoked via `/auto-code`, executes an end-to-end autonomous engineering loop uniting bug triage, PR review handling, autonomous plan execution, code review, and visual verification: classifies intent, triages comments or issues, formulates and clarifies plans via grill-me, executes minimally with ponytail, verifies, reviews locally, captures frontend screenshots when UI is affected, and remediates.
-argument-hint: "[<issue-description|pr-number-or-url>]"
+  When invoked via `/auto-code`, executes an end-to-end autonomous engineering loop uniting bug triage, PR review handling, autonomous plan execution, code review, and visual verification. Supports `--micro` for fast planless trivial edits and `--push` for optional remote pushes.
+argument-hint: "[--micro] [--push] [<issue-description|pr-number-or-url>]"
 ---
 
 # Auto-Code Workflow
@@ -15,43 +15,67 @@ Unified orchestrator combining bug triage, PR review comment handling, autonomou
 
 ## 0. Invocation, Branch & Working Tree Safety Guard
 
-1. **Invocation Guard**:
-   - Only activate when explicitly invoked via `/auto-code` (e.g. `/auto-code`, `/auto-code <query>`, `/auto-code <pr-number-or-url>`).
+1. **Invocation Guard & Flags**:
+   - Only activate when explicitly invoked via `/auto-code` (e.g. `/auto-code`, `/auto-code --micro <query>`, `/auto-code --push <query>`).
    - Abort immediately if triggered casually.
+   - Detect operational flags from user prompt:
+     - `--micro` (or `--quick`): Force the streamlined micro-path (skips plan artifact, runs surgical inspect-fix-verify loop).
+     - `--push`: Enable automatic push to remote branch upon completion (defaults to local commit only).
 2. **Branch Check**:
    - Query `git rev-parse --abbrev-ref HEAD`.
    - If on `main`, `master`, `production`, `release/*`, or detached HEAD, confirm with user before touching code or staging commits.
 3. **Working Tree Dirty State Guard**:
    - Inspect workspace cleanliness via `git status -s`.
-   - If clean, or uncommitted changes strictly match target files/tests for this task: proceed.
-   - If unrelated uncommitted changes exist: prompt user via `ask_question`:
+   - Note any existing uncommitted files in workspace.
+   - **Non-Overlapping Tolerance**: If uncommitted changes exist in unrelated files, do **NOT** halt or prompt to stash. Proceed silently as long as dirty files do not overlap with the target files of this task.
+   - **Target Collision Check**: Once target files are identified (in Phase A/B), if an uncommitted file intersects with planned target files, halt and prompt the user via `ask_question`:
      - `(Recommended) Stash uncommitted changes and proceed: git stash push -u -m "auto-code-backup"`
      - `Include existing uncommitted changes in this task`
      - `Abort execution to resolve working tree manually`
-4. **Core Invariant: Test & Diagnostic File Preservation on Abort**:
-   - Whenever execution is aborted or cancelled at any stage (during triage, grill-me alignment, plan invalidation, or review):
-     - **NEVER delete, revert, or clean up reproduction test files, regression tests, or diagnostic scripts.**
+4. **Test & Diagnostic File Preservation & Cleanup on Abort**:
+   - Whenever execution is aborted or cancelled at any stage:
      - **Ephemeral Diagnostics**: Written to `<Artifact Directory>/scratch/` (zero git workspace pollution).
-     - **Permanent Regression Tests**: Written inside project test directory (e.g. `tests/`).
-     - On abort, all test files remain intact on disk. Report their exact paths in chat before halting.
+     - **In-Repo Reproduction Tests**: If a reproduction test was created inside the project test folder (e.g. `tests/repro_*.test.ts`) and the task is aborted during triage, plan formulation, or prior to green verification:
+       - Prompt the user via `ask_question`:
+         - `(Recommended) Delete newly created reproduction test file`
+         - `Keep reproduction test file on disk for debugging`
+     - Report paths of any retained test files in chat before halting.
 
 ---
 
-## 1. Initial State Assessment
+## 1. Initial State Assessment & Stale Plan Guard
 
-Check the active `<Artifact Directory>` for an existing implementation plan artifact (e.g. `*plan*.md`):
-- **If an active plan exists** → Skip to [Phase B: Has Plan](#phase-b-has-plan).
-- **If no plan exists** → Proceed to [Phase A: No Plan](#phase-a-no-plan).
+Check the active `<Artifact Directory>` for an existing implementation plan artifact (e.g. `auto_code_plan.md`):
+- **Stale Plan Check**: Read the YAML frontmatter of `auto_code_plan.md` (if it exists):
+  - If `status: COMPLETED` or `status: ABORTED`, or if the user's prompt introduces a new task or query:
+    - Archive existing plan (overwrite or write backup) and proceed to [Phase A: No Plan](#phase-a-no-plan).
+  - If `status: FROZEN` or `status: IN_PROGRESS` **AND** current branch matches `branch` **AND** the prompt is an explicit resumption (e.g. `/auto-code resume`):
+    - Skip to [Phase B: Has Plan](#phase-b-has-plan).
+- **If no plan exists**:
+  - Proceed to [Phase A: No Plan](#phase-a-no-plan).
 
 ---
 
 ## Phase A: No Plan (Intent Triage & Plan Formulation)
 
-### A.1 Intent Classification & Progressive Disclosure
+### A.1 Intent Classification & Execution Mode Gate
 Determine user intent from prompt and workspace context (do **NOT** read companion standards upfront):
-1. **PR / Review Comments**: Initiated with PR reference or review feedback -> Proceed to A.2 (Subagent triage).
-2. **Bug / Issue**: Initiated with a defect report or broken behavior -> Read [`BUG_FIX_STANDARDS.md`](./BUG_FIX_STANDARDS.md) and proceed to A.3.
-3. **Feature / Task**: Initiated with new functionality or refactor -> Proceed to A.4 (Inline specification).
+1. **Execution Mode Selection**:
+   - **Micro-Path (`--micro` or Auto-Triaged)**:
+     - Activated if `--micro` flag is supplied OR if the task is clearly trivial (< 15 lines of code, $\le$ 2 files, unambiguous prompt, e.g. typo, off-by-one, missing property).
+     - **Streamlined Workflow**:
+       1. Inspect target file.
+       2. Add/update targeted test or minimal reproduction check.
+       3. Apply surgical fix using `ponytail`.
+       4. Run targeted test + fast static check (linter/typecheck).
+       5. **Escalation Gate**: If the fix turns out to require > 2 files, > 25 lines, or breaks caller contracts, **escalate immediately** to Standard Path: generate plan artifact and proceed to Phase B.
+       6. Skip `auto_code_plan.md` file generation and skip Phase D.3 Compliance Audit. Jump straight to [Phase D.5: Clean Completion & Finalization](#d5-clean-completion--finalization).
+   - **Standard Path**:
+     - For multi-file changes, architectural tasks, PR review comment batches, or complex bugs. Proceed through A.2–A.6.
+2. **Intent Classification**:
+   - **PR / Review Comments**: Initiated with PR reference or review feedback -> Proceed to A.2 (Subagent triage).
+   - **Bug / Issue**: Initiated with a defect report or broken behavior -> Read [`BUG_FIX_STANDARDS.md`](./BUG_FIX_STANDARDS.md) and proceed to A.3.
+   - **Feature / Task**: Initiated with new functionality or refactor -> Proceed to A.4 (Inline specification).
 
 ### A.2 PR Review Comment Triage (When Intent = Review Comments)
 Follow [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) using subagent delegation:
@@ -80,15 +104,17 @@ Follow the standards defined in [`BUG_FIX_STANDARDS.md`](./BUG_FIX_STANDARDS.md)
 3. **Caller & Compatibility Scan**:
    - Trace existing callers to ensure non-breaking additions or minimal planned caller updates.
 
-### A.5 Multi-Approach Tradeoff Analysis & Draft Plan
+### A.5 Multi-Approach Tradeoff Analysis & Draft Plan (Contract-First)
 1. **Tradeoff Analysis (When Viable Alternatives Exist)**:
    - If more than one clean implementation or fix strategy exists:
      - Compare options across **Blast Radius** (caller impact), **Complexity** (abstractions vs stdlib), **Line Impact** (net lines), and **Maintainability**.
      - Provide an explicit recommendation based on the Ponytail Ladder (codebase reuse > stdlib > shortest working diff).
-2. **Draft Structured Plan**:
-   - Target files, functions, and line ranges.
-   - Planned minimal diff (exact replacement snippet).
-   - Targeted verification command (running necessary tests only).
+2. **Draft Structured Contract Plan**:
+   - Plan by **Contract & Boundaries** rather than fragile exact diff code blocks:
+     - Target files, functions, and line ranges.
+     - Expected interface/behavioral contract (input/output signatures, invariants, edge cases).
+     - Invariants: What must NOT change (e.g. caller contracts, public signatures).
+     - Targeted verification command (necessary tests + static checks).
 
 ### A.6 Ambiguity, Tradeoff & Simplicity Gate (Grill-Me)
 Inspect the drafted plan and tradeoff analysis:
@@ -138,29 +164,37 @@ Execute the frozen plan sequentially without conversational pauses:
 ### B.5 Controlled Plan Invalidation & Revision Protocol
 If a planned step fails verification or encounters an unexpected technical blocker during execution:
 - **Zero Silent Deviation**: Never quietly edit unrelated files or expand scope without logging.
-- **Case A: Minor Tactical Amendment** (same strategy, e.g. missing import, null guard, or type adjustment):
-  1. Append an amendment entry to `<Artifact Directory>/auto_code_plan.md`:
-     ```markdown
-     ### 📝 Amendment #1: <brief description>
-     - **Reason**: <why adjustment was necessary to satisfy verification>
-     - **Adjusted Diff**: <new minimal replacement snippet>
-     ```
-  2. Note in chat: `> ℹ️ Plan Amendment #1: [brief reason]`
-  3. Apply amendment and re-verify targeted tests.
-- **Case B: Major Strategic Invalidation** (approach is fundamentally unviable or invalidates architecture):
-  1. **Halt immediately.** Do not touch further files. Preserve all test files and current workspace state intact.
+- **Case A: Tactical Adjustments (No Formal Amendment Required)**:
+  - Minor adjustments within target files (missing imports, syntax tweaks, null guards, type casts) do not require formal markdown amendments in the plan.
+  - Apply directly, note in chat (e.g. `> ℹ️ Added missing type guard for undefined in parseInput`), and re-run verification.
+- **Case B: Formal Structural Amendment (Plan Artifact Update Required)**:
+  - If an **unplanned file** must be touched or an API/contract changes:
+    1. Append an amendment entry to `<Artifact Directory>/auto_code_plan.md`:
+       ```markdown
+       ### 📝 Amendment #1: <brief description>
+       - **Reason**: <why adjustment was necessary to satisfy verification>
+       - **Adjusted Scope**: <new target files or signature changes>
+       ```
+    2. Note in chat: `> ℹ️ Plan Amendment #1: [brief reason]`
+    3. Apply amendment and re-verify targeted tests.
+- **Case C: Major Strategic Invalidation** (approach is fundamentally unviable or invalidates architecture):
+  1. **Halt immediately.** Do not touch further production files.
   2. Explain the fundamental roadblock clearly in chat.
   3. Prompt user via `ask_question` with options:
      - `(Recommended) Pivot to Alternative Strategy: <brief description>`
-     - `Abort execution (preserve reproduction tests and state)`
-  4. If user approves pivot, update `auto_code_plan.md` with the amended strategy and resume execution. If user aborts, preserve all test files and state intact, report their file paths in chat, and halt cleanly.
+     - `Abort execution (prompt for cleanup of new test files)`
+  4. If user approves pivot, update `auto_code_plan.md` with the amended strategy and resume execution. If user aborts, prompt whether to keep or remove newly created reproduction tests, report their file paths in chat, and halt cleanly.
 
 ---
 
 ## Phase C: Post-Execution Verification & Code Review
 
-### C.1 Acceptance Verification
-Confirm all targeted test cases pass cleanly (running **necessary tests only**).
+### C.1 Acceptance & Static Verification Gate
+1. Confirm all targeted test cases pass cleanly (running **necessary tests only**).
+2. **Static Analysis & Typecheck Gate**:
+   - **Targeted Lint**: Run linter on *only modified files* (e.g. `npx eslint <modified_files>`, `ruff check <modified_files>`).
+   - **Project Typecheck / Compilation**: If project uses static typing or compiled languages (TypeScript `tsconfig.json`, Rust `Cargo.toml`, Go `go.mod`), run a fast non-emitting check (`npx tsc --noEmit`, `cargo check`, `go vet`).
+   - Ensure zero new type errors or linter warnings exist before advancing to review.
 
 ### C.2 Review Routing (Fast-Path vs Heavy-Path)
 Determine review tier:
@@ -217,8 +251,16 @@ For any feature, update, or bug fix that alters the visual appearance, styling, 
    - If server is reachable, execute `capture.mjs` (Mode A) and embed screenshot preview in closing report.
 
 ### D.5 Clean Completion & Finalization
-When verification is green, the Plan Compliance Audit is confirmed, visual verification is complete (for UI changes), and no blocking review findings remain:
-1. Update `status: COMPLETED` in `auto_code_plan.md`.
-2. Present the Consolidated Status Report, Plan Compliance Checklist, and any visual verification previews in chat.
-3. If code changes were made, commit and push changes safely adhering to [`git-commit-push`](../git-commit-push/SKILL.md), capturing `<short-sha>`.
-4. If working on PR review comments, reply to and resolve threads on GitHub per [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) referencing `<short-sha>`, and render the PR Resolution Summary Table.
+When verification is green, the Plan Compliance Audit is confirmed (if on Standard Path), visual verification is complete (for UI changes), and no blocking review findings remain:
+1. Update `status: COMPLETED` in `auto_code_plan.md` (if plan artifact exists).
+2. Present the Consolidated Status Report, Plan Compliance Checklist (if on Standard Path), and any visual verification previews in chat.
+3. If code changes were made:
+   - **Surgical Staging**: Stage strictly the target files modified during this task (`git add <target-files>`), avoiding `git add .` or sweeping untracked workspace files.
+   - **Local Commit**: Commit changes adhering to [`git-commit-push`](../git-commit-push/SKILL.md) conventions, capturing `<short-sha>`.
+   - **Push Policy (Opt-In / Flag-Based)**:
+     - If `--push` flag was explicitly passed: Push to remote upstream branch.
+     - Otherwise: Keep commit local and notify user: `Committed <short-sha> locally. Review or push when ready (use /auto-code --push to auto-push next time).`
+4. If working on PR review comments:
+   - For `ADDRESSED` threads: auto-reply and resolve referencing `<short-sha>`.
+   - For `INVALID` or `WONT_FIX` threads: present draft reply in chat and confirm with user via `ask_question` before executing `resolveReviewThread`.
+   - Render the PR Resolution Summary Table per [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md).

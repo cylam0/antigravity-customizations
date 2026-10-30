@@ -32,12 +32,15 @@ Across all testing and verification stages:
 ## 3. Stage 2: Build Reproduction Test (Red Phase)
 
 1. **Test Placement & Classification**:
-   - **Permanent Regression Test (Default)**: Place inside project test directory (e.g. `tests/`). Retained and committed with the fix.
-   - **Ephemeral Diagnostic Probe (Scratch)**: Write to `<Artifact Directory>/scratch/` to avoid git workspace pollution. Never create loose scratch scripts at repository root.
+   - **Permanent Regression Test**: Place inside project test directory (e.g. `tests/`). Use clear naming (e.g., `tests/repro_<issue>.test.ts`) so new test artifacts are easily identifiable.
+   - **Ephemeral Diagnostic Probe (Scratch)**: Write to `<Artifact Directory>/scratch/` when probing standalone logic to avoid workspace changes.
 2. **Execute & Confirm Failure**:
    - Run targeted test via `run_command` (necessary tests only).
    - **Confirm the test FAILS** with the expected error before modifying any production code.
    - If the test does not fail, refine the test until the failure is reliably reproduced.
+3. **Abort & Cleanup Guard**:
+   - If execution is aborted before the fix is completed:
+     - Prompt the user whether to keep the newly created reproduction test or delete it, avoiding untracked test pollution.
 
 ---
 
@@ -52,27 +55,34 @@ If more than one clean way to fix the problem exists:
 
 ## 5. Stage 4: Controlled Plan Revision Protocol
 
-If the planned diff fails to make the reproduction test pass or encounters an unexpected blocker during execution:
+If the planned implementation fails verification or encounters an unexpected blocker during execution:
 - **Zero Silent Deviation**: Never quietly edit unrelated files without recording the reason.
-- **Minor Tactical Amendment** (e.g., missing null guard, type cast, or import):
-  - Append amendment to the frozen plan artifact (`auto_code_plan.md`):
-    ```markdown
-    ### 📝 Amendment #1: <brief description>
-    - **Reason**: <why adjustment was necessary to pass test>
-    - **Adjusted Diff**: <new minimal replacement snippet>
-    ```
-  - Note in chat and re-verify reproduction test.
+- **Tactical Adjustments (No Formal Amendment Required)**:
+  - Minor fixes (missing import, syntax tweak, null guard, type cast within target files) do not require formal markdown amendments. Apply directly, note in chat (e.g., `> ℹ️ Added missing null check for user.id`), and re-run verification.
+- **Formal Amendments (Plan Artifact Update Required)**:
+  - If an **unplanned file** must be touched or an API/contract changes:
+    - Append amendment to the frozen plan artifact (`auto_code_plan.md`):
+      ```markdown
+      ### 📝 Amendment #1: <brief description>
+      - **Reason**: <why adjustment was necessary>
+      - **Target Files / Changes**: <new target files or contract adjustment>
+      ```
+    - Note in chat and re-verify.
 - **Major Strategic Invalidation** (approach is fundamentally unviable):
-  - Halt immediately without further edits.
-  - Preserve all reproduction test files intact on disk for developer reference.
+  - Halt immediately without touching further production files.
   - Explain roadblock and use `ask_question` to pivot or cancel.
+  - On cancellation, prompt whether to keep or remove the reproduction test.
 
 ---
 
-## 6. Stage 5: Post-Fix Verification (Red to Green) & Dynamic Regression
+## 6. Stage 5: Post-Fix Verification (Red to Green) & Static Analysis Gate
 
 1. **Reproduction Proof**: Re-run the isolated reproduction test and verify transition from **RED** to **GREEN**.
-2. **Dynamic Caller & Regression Check**:
+2. **Static Analysis & Typecheck Gate**:
+   - **Targeted Lint**: Run linter on *only modified files* (e.g. `npx eslint <modified_files>`, `ruff check <modified_files>`).
+   - **Project Typecheck / Compilation**: If project uses static typing or compiled languages (TypeScript `tsconfig.json`, Rust `Cargo.toml`, Go `go.mod`), run a fast non-emitting check (`npx tsc --noEmit`, `cargo check`, `go vet`).
+   - Fix any type errors or lint warnings introduced by the changes before concluding verification.
+3. **Dynamic Caller & Regression Check**:
    - Trace all callers of the modified function.
    - Run targeted tests for directly affected caller modules or write a focused boundary test case covering edge values (null, empty, limits).
    - Ensure necessary tests pass cleanly with zero side effects.
