@@ -136,6 +136,11 @@ function renderList() {
     const badgeLabel = skill.scope === 'builtin' ? 'Built-in (System)' : skill.scope;
     const badgeClass = `badge-${skill.scope}`;
 
+    const isBuiltin = skill.scope === 'builtin';
+    const switchTitle = isBuiltin
+      ? 'Built-in system skills are managed by Antigravity and cannot be disabled'
+      : (skill.enabled ? 'Click to disable via skills.json' : 'Click to enable in / slash menu');
+
     card.innerHTML = `
       <div class="card-body">
         <div class="card-title-row">
@@ -145,8 +150,8 @@ function renderList() {
         <p class="card-desc">${escapeHtml(skill.description)}</p>
       </div>
       <div class="card-toggle">
-        <label class="switch" title="${skill.enabled ? 'Click to disable from / slash menu' : 'Click to enable in / slash menu'}">
-          <input type="checkbox" ${skill.enabled ? 'checked' : ''}>
+        <label class="switch" title="${escapeHtml(switchTitle)}">
+          <input type="checkbox" ${skill.enabled ? 'checked' : ''} ${isBuiltin ? 'disabled' : ''}>
           <span class="slider"></span>
         </label>
       </div>
@@ -157,9 +162,11 @@ function renderList() {
 
     // Toggle switch
     const checkbox = card.querySelector('input[type="checkbox"]');
-    checkbox.addEventListener('change', async () => {
-      await toggleSkill(skill, checkbox);
-    });
+    if (!isBuiltin) {
+      checkbox.addEventListener('change', async () => {
+        await toggleSkill(skill, checkbox);
+      });
+    }
 
     container.appendChild(card);
   });

@@ -1,15 +1,22 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Response, SidecarApp } from 'sidecar_sdk';
+import {
+  getExcludedSkills,
+  normalizeFsPath,
+  setSkillExcluded,
+} from './skills-config.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HOME = homedir();
-const GLOBAL_SKILLS_DIR = join(HOME, '.gemini', 'config', 'skills');
+const GLOBAL_SKILLS_STORE_DIR = join(HOME, '.gemini', 'config', 'skills-store');
+const GLOBAL_SKILLS_LEGACY_DIR = join(HOME, '.gemini', 'config', 'skills');
+const GLOBAL_SKILLS_CONFIG = join(HOME, '.gemini', 'config', 'skills.json');
 const BUILTIN_SKILLS_DIR = join(HOME, '.gemini', 'antigravity', 'builtin', 'skills');
 
-const STANDARD_ROOTS = [GLOBAL_SKILLS_DIR, BUILTIN_SKILLS_DIR];
+const STANDARD_ROOTS = [GLOBAL_SKILLS_STORE_DIR, GLOBAL_SKILLS_LEGACY_DIR, BUILTIN_SKILLS_DIR];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,25 +64,6 @@ function assertAllowedPath(targetPath, extraRoots = []) {
   return canonical;
 }
 
-function safeRename(source, dest, maxRetries = 3, delayMs = 50) {
-  mkdirSync(dirname(dest), { recursive: true });
-  if (existsSync(dest)) {
-    throw new Error(`Target directory already exists: ${dest}`);
-  }
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      renameSync(source, dest);
-      return;
-    } catch (err) {
-      if ((err.code === 'EPERM' || err.code === 'EBUSY') && i < maxRetries - 1) {
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
-        continue;
-      }
-      throw err;
-    }
-  }
-}
-
 function extractMetadata(content) {
   const sanitized = content.replace(/^\uFEFF/, '');
   const match = sanitized.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -111,7 +99,7 @@ function validateFrontmatter(content) {
   if (!/^\s*description\s*:\s*[^\s]/m.test(yaml)) throw new Error("Missing 'description:' in YAML frontmatter.");
 }
 
-function scanSkillDir(baseDir, scope, isExplicitDisabled = false) {
+function scanSkillDir(baseDir, scope, excludedSet = new Set()) {
   if (!existsSync(baseDir)) return [];
   const results = [];
 
@@ -124,15 +112,7 @@ function scanSkillDir(baseDir, scope, isExplicitDisabled = false) {
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-
-    // Scan .disabled folder recursively
-    if (entry.name === '.disabled' && !isExplicitDisabled) {
-      const disabledSkills = scanSkillDir(join(baseDir, '.disabled'), scope, true);
-      results.push(...disabledSkills);
-      continue;
-    }
-
-    if (entry.name.startsWith('.') && !isExplicitDisabled) continue;
+    if (entry.name.startsWith('.')) continue;
 
     const skillPath = join(baseDir, entry.name);
     const skillFile = join(skillPath, 'SKILL.md');
@@ -141,15 +121,17 @@ function scanSkillDir(baseDir, scope, isExplicitDisabled = false) {
     try {
       const content = readFileSync(skillFile, 'utf8');
       const { name, description } = extractMetadata(content);
+      const isExcluded = excludedSet.has(entry.name) || (name && excludedSet.has(name));
       results.push({
         id: `${scope}:${entry.name}`,
         name: name || entry.name,
         dirName: entry.name,
         description: description || 'No description provided.',
         scope,
-        enabled: !isExplicitDisabled,
+        enabled: !isExcluded,
         path: skillPath,
         file: skillFile,
+        storePath: baseDir,
       });
     } catch (err) {
       console.error(`Error reading ${skillFile}:`, err.message);
@@ -172,13 +154,34 @@ app.api('/styles.css', () => new Response(readFileSync(join(HERE, 'styles.css'),
 app.api('/api/skills', (data) => {
   try {
     const wsRoots = parseWorkspaceRoots(data?.workspaceUris);
+    const globalExcluded = getExcludedSkills(GLOBAL_SKILLS_CONFIG, GLOBAL_SKILLS_STORE_DIR);
+
+    // Primary: global skills store
     const skills = [
-      ...scanSkillDir(GLOBAL_SKILLS_DIR, 'global'),
-      ...scanSkillDir(BUILTIN_SKILLS_DIR, 'builtin'),
+      ...scanSkillDir(GLOBAL_SKILLS_STORE_DIR, 'global', globalExcluded),
     ];
-    for (const wsRoot of wsRoots) {
-      skills.push(...scanSkillDir(wsRoot, 'workspace'));
+
+    // Fallback: legacy global skills directory if not yet migrated or present
+    if (existsSync(GLOBAL_SKILLS_LEGACY_DIR)) {
+      const legacyExcluded = getExcludedSkills(GLOBAL_SKILLS_CONFIG, GLOBAL_SKILLS_LEGACY_DIR);
+      const legacySkills = scanSkillDir(GLOBAL_SKILLS_LEGACY_DIR, 'global', legacyExcluded);
+      for (const ls of legacySkills) {
+        if (!skills.some(s => s.dirName === ls.dirName)) {
+          skills.push(ls);
+        }
+      }
     }
+
+    // Built-in skills (immutable in skills.json)
+    skills.push(...scanSkillDir(BUILTIN_SKILLS_DIR, 'builtin', new Set()));
+
+    // Workspace skills
+    for (const wsRoot of wsRoots) {
+      const wsConfig = join(dirname(wsRoot), 'skills.json');
+      const wsExcluded = getExcludedSkills(wsConfig, wsRoot);
+      skills.push(...scanSkillDir(wsRoot, 'workspace', wsExcluded));
+    }
+
     return jsonResponse({ skills }, 200);
   } catch (err) {
     return jsonResponse({ error: err.message }, 500);
@@ -191,26 +194,32 @@ app.api('/api/skill/toggle', (data) => {
     const wsRoots = parseWorkspaceRoots(data.workspaceUris);
     const canonical = assertAllowedPath(data.path, wsRoots);
 
-    const currentParent = dirname(canonical);
     const skillName = basename(canonical);
-    let destPath;
+    const storeDir = dirname(canonical);
 
-    if (basename(currentParent) === '.disabled') {
-      // Re-enable
-      destPath = join(dirname(currentParent), skillName);
-    } else {
-      // Disable
-      destPath = join(currentParent, '.disabled', skillName);
+    // Guard: Built-in skills cannot be excluded via skills.json
+    if (normalizeFsPath(storeDir) === normalizeFsPath(BUILTIN_SKILLS_DIR)) {
+      throw new Error(`Built-in system skills are managed directly by Antigravity and cannot be disabled via skills.json.`);
     }
 
-    safeRename(canonical, destPath);
-    const isNowEnabled = basename(dirname(destPath)) !== '.disabled';
+    // Determine target skills.json
+    let configPath = GLOBAL_SKILLS_CONFIG;
+    if (wsRoots.some(ws => normalizeFsPath(storeDir) === normalizeFsPath(ws))) {
+      configPath = join(dirname(storeDir), 'skills.json');
+    }
+
+    const currentExcluded = getExcludedSkills(configPath, storeDir);
+    const isCurrentlyExcluded = currentExcluded.has(skillName);
+    const nextShouldExclude = !isCurrentlyExcluded;
+
+    setSkillExcluded(configPath, storeDir, skillName, nextShouldExclude);
+    const isNowEnabled = !nextShouldExclude;
 
     return jsonResponse({
       success: true,
-      newPath: destPath,
+      newPath: canonical,
       enabled: isNowEnabled,
-      file: join(destPath, 'SKILL.md'),
+      file: join(canonical, 'SKILL.md'),
     }, 200);
   } catch (err) {
     return jsonResponse({ error: err.message }, 400);
@@ -258,19 +267,29 @@ app.api('/api/skill/save', (data) => {
     if (!name) throw new Error("A valid skill name is required.");
 
     let targetDir;
+    let storeDir;
+    let configPath;
+
     if (scope === 'workspace') {
       if (!wsRoots.length) {
         throw new Error("No active workspace found to create workspace skill.");
       }
-      targetDir = join(wsRoots[0], name);
+      storeDir = wsRoots[0];
+      targetDir = join(storeDir, name);
+      configPath = join(dirname(storeDir), 'skills.json');
     } else {
-      targetDir = join(GLOBAL_SKILLS_DIR, name);
+      storeDir = GLOBAL_SKILLS_STORE_DIR;
+      targetDir = join(storeDir, name);
+      configPath = GLOBAL_SKILLS_CONFIG;
     }
 
     assertAllowedPath(targetDir, wsRoots);
     mkdirSync(targetDir, { recursive: true });
     const targetFile = join(targetDir, 'SKILL.md');
     writeFileSync(targetFile, content, 'utf8');
+
+    // Ensure new skill is not excluded
+    setSkillExcluded(configPath, storeDir, name, false);
 
     return jsonResponse({ success: true, path: targetFile, dir: targetDir }, 200);
   } catch (err) {

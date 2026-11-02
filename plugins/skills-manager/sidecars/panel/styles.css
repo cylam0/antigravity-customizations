@@ -299,6 +299,15 @@ input:checked + .slider:before {
   transform: translateX(14px);
 }
 
+input:disabled + .slider {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+label.switch:has(input:disabled) {
+  cursor: not-allowed;
+}
+
 /* Modal ------------------------------------------------------------------- */
 
 .modal-backdrop {
