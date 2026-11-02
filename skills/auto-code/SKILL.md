@@ -3,8 +3,8 @@ name: auto-code
 description: >-
   CRITICAL: ONLY activate this skill when the user explicitly triggers the `/auto-code` slash command.
   DO NOT auto-trigger or invoke this skill for general coding, reviewing, debugging, or casual tasks.
-  When invoked via `/auto-code`, executes an end-to-end autonomous engineering loop uniting bug triage, PR review handling, autonomous plan execution, code review, and visual verification. Supports `--micro` for fast planless trivial edits and `--push` for optional remote pushes.
-argument-hint: "[--micro] [--push] [<issue-description|pr-number-or-url>]"
+  When invoked via `/auto-code`, executes an end-to-end autonomous engineering loop uniting bug triage, PR review handling, autonomous plan execution, code review, and visual verification. Supports `--micro` for fast planless trivial edits and `--no-push` to keep changes local.
+argument-hint: "[--micro] [--no-push] [<issue-description|pr-number-or-url>]"
 ---
 
 # Auto-Code Workflow
@@ -16,11 +16,11 @@ Unified orchestrator combining bug triage, PR review comment handling, autonomou
 ## 0. Invocation, Branch & Working Tree Safety Guard
 
 1. **Invocation Guard & Flags**:
-   - Only activate when explicitly invoked via `/auto-code` (e.g. `/auto-code`, `/auto-code --micro <query>`, `/auto-code --push <query>`).
+   - Only activate when explicitly invoked via `/auto-code` (e.g. `/auto-code`, `/auto-code --micro <query>`, `/auto-code --no-push <query>`).
    - Abort immediately if triggered casually.
    - Detect operational flags from user prompt:
      - `--micro` (or `--quick`): Force the streamlined micro-path (skips plan artifact, runs surgical inspect-fix-verify loop).
-     - `--push`: Enable automatic push to remote branch upon completion (defaults to local commit only).
+     - `--no-push`: Skip remote push upon completion (defaults to atomic commit & push).
 2. **Branch Check**:
    - Query `git rev-parse --abbrev-ref HEAD`.
    - If on `main`, `master`, `production`, `release/*`, or detached HEAD, confirm with user before touching code or staging commits.
@@ -40,6 +40,22 @@ Unified orchestrator combining bug triage, PR review comment handling, autonomou
          - `(Recommended) Delete newly created reproduction test file`
          - `Keep reproduction test file on disk for debugging`
      - Report paths of any retained test files in chat before halting.
+
+---
+
+## Core Testing Invariants: Targeted & Non-Interactive (Anti-Watch Guard)
+
+Across all testing and verification stages:
+- **Run Necessary Tests Only**: Never run monolithic or entire-workspace test suites. Target only the specific file or pattern (e.g. `npm test -- run path/to/target.test.ts`, `pytest tests/test_module.py::test_case`, `go test ./pkg/... -run TestName`).
+- **Non-Interactive Single-Run Mode (CRITICAL)**: Test runners must **NEVER** run in watch or interactive mode. Always use explicit single-run termination flags to prevent hanging `run_command` processes:
+  - **Vitest**: Always pass `run` or `--run` (or set `CI=true` / `$env:CI='true'`). E.g. `npx vitest run <path>`, `npm test -- run <path>`, `pnpm test -- run <path>` (never invoke bare `vitest <path>` or `npm test -- <path>` without `run`).
+  - **Jest**: Pass `--watch=false` or `--watchAll=false` if project default script enables watch mode.
+  - **Terminal Log Suppression**: Use dot, quiet, or bail flags (`--reporter=dot`, `-q`, `--bail`) to prevent terminal log flooding.
+- **🚨 Watch-Mode Detection & Immediate Task Kill (Anti-Hang Guard)**:
+  - If a test command does not exit within `WaitMsBeforeAsync` and gets backgrounded as a task, OR if the command output contains `Waiting for file changes...` / `press h to show help, press q to quit`:
+    - **DO NOT wait for the task to complete** (watch mode will NEVER terminate on its own, causing the agent to hang indefinitely).
+    - **Immediately kill the task**: Call `manage_task` with `Action: "kill"` and the background `TaskId`.
+    - **Immediately re-run the command** using single-run flags: `$env:CI="true"; npx vitest run <path>` or `$env:CI="true"; npm test -- run <path>`.
 
 ---
 
@@ -67,7 +83,7 @@ Determine user intent from prompt and workspace context (do **NOT** read compani
        1. Inspect target file.
        2. Add/update targeted test or minimal reproduction check.
        3. Apply surgical fix using `ponytail`.
-       4. Run targeted test + fast static check (linter/typecheck).
+       4. Run targeted test (single-run non-interactive, e.g. `npx vitest run <path>` or `$env:CI="true"; npm test -- run <path>`) + fast static check (linter/typecheck).
        5. **Escalation Gate**: If the fix turns out to require > 2 files, > 25 lines, or breaks caller contracts, **escalate immediately** to Standard Path: generate plan artifact and proceed to Phase B.
        6. Skip `auto_code_plan.md` file generation and skip Phase D.3 Compliance Audit. Jump straight to [Phase D.5: Clean Completion & Finalization](#d5-clean-completion--finalization).
    - **Standard Path**:
@@ -84,9 +100,9 @@ Follow [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) using subagent deleg
    - `TypeName: "self"`
    - `Role: "PR Review Triage Analyst"`
    - `Model: "flash"`
-   - Prompt subagent to fetch GraphQL threads per `PR_REVIEW_STANDARDS.md`, group file reads, and return the formatted Executive Summary Table and candidate diffs.
+   - Prompt subagent to fetch threads via `node skills/auto-code/scripts/pr-comments.mjs fetch` (or save via `--out <path>`), group file reads, and return the formatted Executive Summary Table and candidate diffs.
 2. **Adaptive Fallback**:
-   If subagent tools are unavailable, read `PR_REVIEW_STANDARDS.md` and triage in-process with a strict cap of 10 unresolved threads.
+   If subagent tools are unavailable, run `node skills/auto-code/scripts/pr-comments.mjs fetch` in-process with a strict cap of 10 unresolved threads.
 3. **Chat vs Artifact Split**:
    - Render the Executive Summary Table directly in chat alongside `ask_question` (multi-select).
    - Write full candidate replacement diffs and technical analyses into the draft plan artifact.
@@ -94,7 +110,7 @@ Follow [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md) using subagent deleg
 ### A.3 Bug Reproduction (When Intent = Bug / Issue)
 Follow the standards defined in [`BUG_FIX_STANDARDS.md`](./BUG_FIX_STANDARDS.md):
 1. Trace execution paths, inspect all callers, and isolate root cause.
-2. Write a minimal reproduction test and verify it **fails** (Red Phase) before touching production code (necessary tests only).
+2. Write a minimal reproduction test and verify it **fails** (Red Phase) before touching production code (running necessary tests only, with mandatory single-run flags e.g. `npx vitest run <path>`; never run bare `vitest` or bare `npm test`).
 
 ### A.4 Feature & Task Specification (When Intent = Feature / Task)
 1. **Acceptance Criteria & Non-Goals**:
@@ -114,7 +130,7 @@ Follow the standards defined in [`BUG_FIX_STANDARDS.md`](./BUG_FIX_STANDARDS.md)
      - Target files, functions, and line ranges.
      - Expected interface/behavioral contract (input/output signatures, invariants, edge cases).
      - Invariants: What must NOT change (e.g. caller contracts, public signatures).
-     - Targeted verification command (necessary tests + static checks).
+     - Targeted verification command (necessary tests + static checks; MUST specify single-run flags e.g. `npm test -- run <path>` or `npx vitest run <path>`, never bare watch commands).
 
 ### A.6 Ambiguity, Tradeoff & Simplicity Gate (Grill-Me)
 Inspect the drafted plan and tradeoff analysis:
@@ -150,7 +166,7 @@ Inspect the drafted plan and tradeoff analysis:
 3. **Context Baseline Checkpoint**: Once `auto_code_plan.md` is frozen, earlier exploratory context is archived; the agent strictly treats `auto_code_plan.md` as the authoritative execution baseline.
 
 ### B.3 Pre-Flight Baseline Verification
-1. Run the targeted baseline test or build command to ensure the current workspace is green before modifications.
+1. Run the targeted baseline test or build command to ensure the current workspace is green before modifications. (MANDATORY: Use single-run non-interactive flags, e.g. `npx vitest run <path>` or `$env:CI="true"; npm test -- run <path>`; never run bare `npm test` or bare `vitest` which triggers watch mode).
 2. **Pre-Existing Failure Guard**: If the pre-flight baseline fails unexpectedly on unrelated code, alert the user before modifying any files to avoid diagnosing pre-existing breakage as new regressions.
 
 ### B.4 Autonomous Execution (Applying `ponytail`)
@@ -159,7 +175,7 @@ Execute the frozen plan sequentially without conversational pauses:
 - **Ponytail Ladder**: Codebase reuse > Stdlib > Native platform features > Shortest working diff.
 - Zero unnecessary abstractions or boilerplate.
 - Apply surgical edits via `edit_file`.
-- Re-run targeted verification tests after each change.
+- Re-run targeted verification tests after each change (always single-run, never watch; if watch mode is triggered, immediately kill background task via `manage_task` and re-run with `run`).
 
 ### B.5 Controlled Plan Invalidation & Revision Protocol
 If a planned step fails verification or encounters an unexpected technical blocker during execution:
@@ -190,7 +206,7 @@ If a planned step fails verification or encounters an unexpected technical block
 ## Phase C: Post-Execution Verification & Code Review
 
 ### C.1 Acceptance & Static Verification Gate
-1. Confirm all targeted test cases pass cleanly (running **necessary tests only**).
+1. Confirm all targeted test cases pass cleanly (running **necessary tests only**, using single-run flags e.g. `npx vitest run <path>` or `$env:CI="true"; npm test -- run <path>`).
 2. **Static Analysis & Typecheck Gate**:
    - **Targeted Lint**: Run linter on *only modified files* (e.g. `npx eslint <modified_files>`, `ruff check <modified_files>`).
    - **Project Typecheck / Compilation**: If project uses static typing or compiled languages (TypeScript `tsconfig.json`, Rust `Cargo.toml`, Go `go.mod`), run a fast non-emitting check (`npx tsc --noEmit`, `cargo check`, `go vet`).
@@ -257,10 +273,13 @@ When verification is green, the Plan Compliance Audit is confirmed (if on Standa
 3. If code changes were made:
    - **Surgical Staging**: Stage strictly the target files modified during this task (`git add <target-files>`), avoiding `git add .` or sweeping untracked workspace files.
    - **Local Commit**: Commit changes adhering to [`git-commit-push`](../git-commit-push/SKILL.md) conventions, capturing `<short-sha>`.
-   - **Push Policy (Opt-In / Flag-Based)**:
-     - If `--push` flag was explicitly passed: Push to remote upstream branch.
-     - Otherwise: Keep commit local and notify user: `Committed <short-sha> locally. Review or push when ready (use /auto-code --push to auto-push next time).`
+   - **Atomic Commit & Push Policy (Default Push)**:
+     - **Mode A: Local Only (`--no-push`)**: If `--no-push` was explicitly passed, commit locally without pushing (`git commit -m "<message>"`), capturing `<short-sha>` and notifying user: `Committed <short-sha> locally (--no-push active). Review or push when ready.`
+     - **Mode B: Commit & Push (Default)**: Execute commit and push in one compound command with upstream fallback (following [`git-commit-push`](../git-commit-push/SKILL.md) Mode B):
+       - **PowerShell**: `git commit -m "<message>"; if ($LASTEXITCODE -eq 0) { git push; if ($LASTEXITCODE -ne 0) { git push -u origin (git rev-parse --abbrev-ref HEAD) } }`
+       - **Bash / POSIX**: `git commit -m "<message>" && (git push || git push -u origin $(git rev-parse --abbrev-ref HEAD))`
+       - Capture `<short-sha>` and report push status in chat.
 4. If working on PR review comments:
-   - For `ADDRESSED` threads: auto-reply and resolve referencing `<short-sha>`.
-   - For `INVALID` or `WONT_FIX` threads: present draft reply in chat and confirm with user via `ask_question` before executing `resolveReviewThread`.
+   - For `ADDRESSED` threads: auto-reply and resolve referencing `<short-sha>` via `node skills/auto-code/scripts/pr-comments.mjs reply-and-resolve --thread-id "<threadId>" --reason ADDRESSED --body "Addressed in commit <short-sha>: <summary>"` (or batch resolve via `batch --file <path>`).
+   - For `INVALID` or `WONT_FIX` threads: present draft reply in chat and confirm with user via `ask_question` before executing `node skills/auto-code/scripts/pr-comments.mjs reply-and-resolve` (or `resolve`).
    - Render the PR Resolution Summary Table per [`PR_REVIEW_STANDARDS.md`](./PR_REVIEW_STANDARDS.md).

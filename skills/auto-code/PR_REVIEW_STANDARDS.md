@@ -21,11 +21,37 @@ Standardized reference for inspecting, evaluating, triaging, and resolving Pull 
    gh pr view --json number,title,url,headRefName,baseRefName,state
    ```
 
-### 1.2 Fetching Unresolved Review Threads (GraphQL API)
-> [!IMPORTANT]
-> Do **NOT** use the REST endpoint `repos/{owner}/{repo}/pulls/{number}/comments` alone — it lacks thread resolution state and returns already-resolved comments.
-> Always query GitHub's GraphQL API to strictly filter for unresolved threads (`isResolved == false`):
+### 1.2 Fetching Unresolved Review Threads
 
+> [!TIP]
+> **Use the Pre-Built Script**: Do **NOT** write ad-hoc Node.js scripts or raw shell commands. Always use the pre-built script `skills/auto-code/scripts/pr-comments.mjs` which safely handles GitHub CLI invocation, pagination, and GraphQL parsing across all platforms.
+
+Execute `fetch` to retrieve unresolved review threads:
+```bash
+# Fetch unresolved review threads as JSON (auto-detects PR on current branch):
+node skills/auto-code/scripts/pr-comments.mjs fetch
+
+# If targeting a specific PR number or URL:
+node skills/auto-code/scripts/pr-comments.mjs fetch --pr <number|url>
+
+# Output as formatted Markdown table:
+node skills/auto-code/scripts/pr-comments.mjs fetch --format table
+
+# Save directly to a JSON file (e.g. in scratch folder for planning):
+node skills/auto-code/scripts/pr-comments.mjs fetch --out <Artifact Directory>/scratch/threads.json
+```
+
+Each thread in the returned JSON contains:
+- `id`: GraphQL thread ID (e.g. `PRRT_kwDO...`) used for replying and resolving.
+- `isResolved`: `false` (filtered automatically).
+- `isOutdated`: `true` if earlier commit already shifted/changed the line.
+- `path`: Target file path.
+- `line` / `originalLine`: Line number(s).
+- `firstComment` / `latestComment`: `{ author, body, createdAt }`.
+- `comments`: Full array of thread comments.
+
+*(Underlying GraphQL query reference)*:
+If the script is ever unavailable, the underlying query is:
 ```bash
 gh api graphql -F owner=":owner" -F repo=":repo" -F pr=<number> -f query='
   query($owner: String!, $repo: String!, $pr: Int!) {
@@ -196,7 +222,50 @@ GitHub GraphQL enum `PullRequestReviewThreadResolutionReason`:
 4. **Best-Effort Processing**: Iterate through triaged threads. If an individual GraphQL call fails (e.g., permissions or network glitch), log the error and continue processing remaining threads.
 5. **Fallback Snippets**: For any failed or skipped API calls, provide ready-to-copy reply snippets in the final report for manual entry.
 
-### GraphQL Mutations
+### CLI Commands via Pre-Built Script (Recommended)
+
+Execute thread replies and resolutions using `skills/auto-code/scripts/pr-comments.mjs`:
+
+1. **Reply and Resolve in One Step** (Standard path for `ADDRESSED` or confirmed `INVALID`/`WONT_FIX`):
+   ```bash
+   node skills/auto-code/scripts/pr-comments.mjs reply-and-resolve \
+     --thread-id "<threadId>" \
+     --reason <ADDRESSED|INVALID|WONT_FIX> \
+     --body "<draftReply>"
+   ```
+
+2. **Individual Operations**:
+   ```bash
+   # Add reply only:
+   node skills/auto-code/scripts/pr-comments.mjs reply --thread-id "<threadId>" --body "<draftReply>"
+
+   # Resolve thread only:
+   node skills/auto-code/scripts/pr-comments.mjs resolve --thread-id "<threadId>" --reason <ADDRESSED|INVALID|WONT_FIX>
+   ```
+
+3. **Batch Resolution from JSON File**:
+   When multiple threads need resolution, prepare a JSON file and resolve in a single command:
+   ```bash
+   node skills/auto-code/scripts/pr-comments.mjs batch --file <Artifact Directory>/scratch/resolutions.json
+   ```
+   *File format (`resolutions.json`)*:
+   ```json
+   [
+     {
+       "threadId": "PRRT_kwDO...",
+       "body": "Addressed in commit <short-sha>: added null check",
+       "reason": "ADDRESSED"
+     },
+     {
+       "threadId": "PRRT_kwDO...",
+       "body": "Handled by outer database transaction",
+       "reason": "INVALID"
+     }
+   ]
+   ```
+
+*(Underlying GraphQL mutations reference)*:
+If the script is ever unavailable, the underlying mutations are:
 
 1. **Add Reply to Thread**:
    ```bash

@@ -4,11 +4,19 @@ Standardized reference for triaging, reproducing, and verifying bug fixes within
 
 ---
 
-## 1. Core Invariant: Run Necessary Tests Only
+## 1. Core Invariants: Run Necessary Tests Only & Anti-Watch Guard
 
 Across all testing and verification stages:
 - **Never run monolithic or entire-workspace test suites.** Blindly executing full test suites wastes time and risks failure on unrelated pre-existing flakiness.
-- **Target only the specific file or pattern**: Execute only the isolated reproduction test or affected module tests (e.g., `npm test -- path/to/test.test.mjs`, `pytest tests/test_module.py::test_case`, `go test ./pkg/... -run TestName`).
+- **Target only the specific file or pattern**: Execute only the isolated reproduction test or affected module tests (e.g., `npm test -- run path/to/test.test.mjs`, `pytest tests/test_module.py::test_case`, `go test ./pkg/... -run TestName`).
+- **Non-Interactive Single-Run Mode (Anti-Watch Guard)**: Test runners must **NEVER** execute in watch or interactive mode. Always supply explicit single-run flags to prevent hanging on `PASS Waiting for file changes...`:
+  - **Vitest**: Always pass `run` or `--run` (e.g., `npx vitest run <path>`, `npm test -- run <path>`, `pnpm test -- run <path>`). Never run bare `vitest` which defaults to watch mode.
+  - **Jest**: Ensure `--watch=false` or `--watchAll=false` if the project's test script has watch enabled by default.
+- **🚨 Watch-Mode Detection & Immediate Task Kill (Anti-Hang Guard)**:
+  - If a test command does not exit within `WaitMsBeforeAsync` and gets backgrounded as a task, OR if the command output contains `Waiting for file changes...` / `press h to show help, press q to quit`:
+    - **DO NOT wait for the task to complete** (watch mode will NEVER terminate on its own, causing the agent to hang indefinitely).
+    - **Immediately kill the task**: Call `manage_task` with `Action: "kill"` and the background `TaskId`.
+    - **Immediately re-run the command** using single-run flags: `$env:CI="true"; npx vitest run <path>` or `$env:CI="true"; npm test -- run <path>`.
 - **Terminal Log Suppression**: Use dot, quiet, or bail flags (e.g., `npm test -- --reporter=dot`, `pytest -q --tb=short`, `go test -short`) to suppress verbose outputs from flooding the conversation transcript.
 
 ---
@@ -35,7 +43,8 @@ Across all testing and verification stages:
    - **Permanent Regression Test**: Place inside project test directory (e.g. `tests/`). Use clear naming (e.g., `tests/repro_<issue>.test.ts`) so new test artifacts are easily identifiable.
    - **Ephemeral Diagnostic Probe (Scratch)**: Write to `<Artifact Directory>/scratch/` when probing standalone logic to avoid workspace changes.
 2. **Execute & Confirm Failure**:
-   - Run targeted test via `run_command` (necessary tests only).
+   - Run targeted test via `run_command` (necessary tests only, enforcing single-run mode e.g. `npx vitest run <path>` or `$env:CI="true"; npm test -- run <path>`).
+   - If output shows `Waiting for file changes...` or command is backgrounded, immediately kill the task with `manage_task(Action="kill")` and re-run with `run`.
    - **Confirm the test FAILS** with the expected error before modifying any production code.
    - If the test does not fail, refine the test until the failure is reliably reproduced.
 3. **Abort & Cleanup Guard**:
@@ -77,7 +86,7 @@ If the planned implementation fails verification or encounters an unexpected blo
 
 ## 6. Stage 5: Post-Fix Verification (Red to Green) & Static Analysis Gate
 
-1. **Reproduction Proof**: Re-run the isolated reproduction test and verify transition from **RED** to **GREEN**.
+1. **Reproduction Proof**: Re-run the isolated reproduction test using single-run flags (e.g. `npx vitest run <path>` or `$env:CI="true"; npm test -- run <path>`) and verify transition from **RED** to **GREEN**.
 2. **Static Analysis & Typecheck Gate**:
    - **Targeted Lint**: Run linter on *only modified files* (e.g. `npx eslint <modified_files>`, `ruff check <modified_files>`).
    - **Project Typecheck / Compilation**: If project uses static typing or compiled languages (TypeScript `tsconfig.json`, Rust `Cargo.toml`, Go `go.mod`), run a fast non-emitting check (`npx tsc --noEmit`, `cargo check`, `go vet`).
