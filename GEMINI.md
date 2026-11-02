@@ -31,11 +31,13 @@ antigravity-customizations/
 │   │   └── README.md
 │   └── modern-web-guidance-plugin/# Web development guidance plugin
 ├── skills/                        # Standalone custom skills
+│   ├── auto-code/                 # Unified autonomous loop (/auto-code) with scripts/pr-comments.mjs
 │   ├── auto-fix/                  # 9-stage TDD bug-fixing workflow (/fix, /auto-fix)
 │   ├── auto-proceed-plan/         # Autonomous plan execution workflow (/auto-proceed-plan)
 │   ├── auto-review-pr/            # PR review triage with multi-select auto-fix (/auto-review-pr)
 │   ├── codebase-guard/            # Issue library and tagging audit skill
 │   ├── code-review/               # Multi-agent review slash command (/code-review)
+│   ├── create-project-issue/      # Create GitHub issue & link to Project board from PROJECT.md
 │   ├── git-commit-push/           # Safe commit & push with branch confirmation & leak guard
 │   ├── karpathy-guidelines-nodejs-agent/ # Node.js agent constraints & practices
 │   ├── ponytail/                  # Minimalist/YAGNI code simplification skill
